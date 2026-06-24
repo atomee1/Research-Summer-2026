@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "schemex"
+version = "0.1.0"
+description = "Discover actionable schemas from examples via clustering, abstraction, and refinement (implementation of the Schemex workflow, arXiv:2502.15105)."
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+    "anthropic>=0.40.0",
+]
+
+[project.scripts]
+schemex = "schemex.cli:main"
+
+[tool.setuptools]
+packages = ["schemex"]
