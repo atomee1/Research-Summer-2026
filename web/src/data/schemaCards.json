@@ -1,0 +1,465 @@
+[
+  {
+    "id": "1",
+    "title": "Hijackers divert Libyan passenger jet to Malta",
+    "date": "2016-12-23",
+    "category": "Crime and law",
+    "url": "https://en.wikinews.org/wiki/Hijackers_divert_Libyan_passenger_jet_to_Malta",
+    "schema": {
+      "headline": "Hijackers divert Libyan passenger jet to Malta",
+      "topic": "security / aviation / politics",
+      "story_type": "political hijacking with asylum/loyalist claims",
+      "trigger_event": "Two armed men seized an Afriqiyah Airways flight on a domestic Libya route and forced it to land in Malta, triggering an airport shutdown and hostage negotiation.",
+      "central_conflict": "A violent aircraft seizure became both a security crisis and a political statement, with uncertainty over whether the hijackers sought asylum, publicity, or to revive Gaddafi-aligned politics.",
+      "main_actors": [
+        "Afriqiyah Airways",
+        "Two hijackers: Suhaha Mussa and Ahmed Alid",
+        "Passengers and crew of Flight 209",
+        "Maltese government and security forces",
+        "Prime Minister Joseph Muscat",
+        "Libyan Government of National Accord officials",
+        "Libyan transport minister",
+        "Libyan foreign minister Taher Siala",
+        "Malta International Airport",
+        "Negotiators / Armed Forces of Malta"
+      ],
+      "affected_group": "Passengers, crew, and airport users affected by the hijacking and airport closure",
+      "stakes": "Immediate safety of hostages and bystanders, disruption to regional aviation, and the broader issue of how fragile state institutions and airport security in Libya can spill across borders.",
+      "causal_chain": [
+        "Libya’s fragmented post-2011 political and security environment leaves airports weakly controlled.",
+        "Two armed men board a domestic Afriqiyah flight and seize control.",
+        "Because of fuel limits and the hijackers’ demands, the plane is diverted to Malta.",
+        "Maltese authorities close the airport and begin negotiations while passengers are held on board.",
+        "Passengers and most crew are released; the hijackers later surrender.",
+        "The incident causes flight disruptions in Malta and raises political questions about motives, asylum, and Gaddafi-era symbolism."
+      ],
+      "narrative_schema": "A transportation vehicle becomes the stage for a political act when weak security enables armed actors to seize it, forcing authorities to manage an immediate hostage crisis while also interpreting the hijackers’ ideological or asylum-related claims. The event exposes how instability in one country can create public-safety and diplomatic problems in another.",
+      "analogy_signature": "armed diversion of civilian transport amid state fragility",
+      "missing_information_a_reporter_might_seek": [
+        "How exactly did the hijackers get weapons past airport security?",
+        "What were the hijackers’ precise demands before surrendering?",
+        "Did they actually seek asylum, and through which channel?",
+        "Were the men acting alone or tied to an organized political network?",
+        "What was the role of Libyan authorities during the negotiation?",
+        "What security failures at Sabha airport or aboard the flight made the hijacking possible?",
+        "Were any passengers or crew physically harmed, and what follow-up support was provided?",
+        "What legal process will Malta and Libya use after the surrender?"
+      ]
+    }
+  },
+  {
+    "id": "2",
+    "title": "MDC pulls out of Zimbabwe elections",
+    "date": "2008-06-22",
+    "category": "Politics and conflicts",
+    "url": "https://en.wikinews.org/wiki/MDC_pulls_out_of_Zimbabwe_elections",
+    "schema": {
+      "headline": "MDC pulls out of Zimbabwe elections",
+      "topic": "politics",
+      "story_type": "electoral boycott over illegitimacy",
+      "trigger_event": "The main opposition party announces it will withdraw from a presidential race it says is predetermined and violent.",
+      "central_conflict": "An opposition movement claims the election is no longer a fair contest because the incumbent controls the process, creating a confrontation between participation as legitimacy and withdrawal as protest.",
+      "main_actors": [
+        "Movement for Democratic Change (MDC)",
+        "Morgan Tsvangirai",
+        "Robert Mugabe",
+        "Zimbabwean electorate",
+        "Foreign governments"
+      ],
+      "affected_group": "Zimbabwean voters, especially supporters of the opposition and citizens seeking a credible transfer of power",
+      "stakes": "The credibility of the election, the legitimacy of the next government, and the prospects for democratic change in Zimbabwe are at risk.",
+      "causal_chain": [
+        "Opposition alleges the electoral outcome is effectively controlled by the incumbent",
+        "The election process is described as violent and illegitimate",
+        "The MDC concludes participation would legitimize a rigged contest",
+        "Tsvangirai announces withdrawal from the presidential race",
+        "The party urges international intervention to address the crisis"
+      ],
+      "narrative_schema": "A weaker political challenger concludes that formal participation in an election has become a tool for legitimizing an unfair system run by the incumbent, so it opts for withdrawal and appeals to outside actors to pressure the regime, shifting the story from campaigning to the legitimacy of the entire political process.",
+      "analogy_signature": "Opposition boycott after a rigged election is seen as already decided",
+      "missing_information_a_reporter_might_seek": [
+        "What specific evidence supports the claim that the outcome is predetermined?",
+        "How widespread is election-related violence, and who is responsible?",
+        "What are the legal and procedural conditions for withdrawing from the race?",
+        "How have government officials responded to the boycott announcement?",
+        "What effect will the withdrawal have on ballot access, voter turnout, and the final result?",
+        "What forms of international intervention is the MDC seeking, and what leverage do foreign governments actually have?"
+      ]
+    }
+  },
+  {
+    "id": "3",
+    "title": "Nokia takes over Symbian OS development",
+    "date": "2010-11-10",
+    "category": "Science and technology",
+    "url": "https://en.wikinews.org/wiki/Nokia_takes_over_Symbian_OS_development",
+    "schema": {
+      "headline": "Nokia takes over Symbian OS development",
+      "topic": "technology / business",
+      "story_type": "platform decline and stewardship transfer",
+      "trigger_event": "Symbian Foundation ended active development of Symbian OS after the platform lost popularity to Android, and Nokia announced it would take over development.",
+      "central_conflict": "A once-shared open-source mobile platform lost market relevance, forcing a governance change: the foundation structure that used to manage it was no longer viable, and the remaining major hardware backer stepped in to preserve and control the project.",
+      "main_actors": [
+        "Symbian Foundation",
+        "Nokia",
+        "Tim Holbrow",
+        "Jo Harlow",
+        "Symbian Foundation employees",
+        "Android (as market competitor)"
+      ],
+      "affected_group": "Symbian users, Nokia device owners, developers building for Symbian, and remaining employees tied to the platform",
+      "stakes": "The fate of an operating system, the continuity of software support, the openness of future releases, and the broader competitiveness of Nokia in the smartphone market.",
+      "causal_chain": [
+        "Android enters the market and gains popularity",
+        "Symbian OS loses market share and strategic importance",
+        "Funding board members shift priorities amid market and economic change",
+        "The Symbian Foundation concludes its governance model is no longer appropriate",
+        "Active foundation development is discontinued and employees begin to retire out",
+        "Nokia, as the main hardware maker still using Symbian, takes over development",
+        "Development tooling shifts toward Qt to support cross-platform apps",
+        "Future licensing terms become uncertain"
+      ],
+      "narrative_schema": "A shared technology platform declines after a stronger competitor changes the market, and the consortium/governance model that maintained it collapses. A dominant remaining stakeholder absorbs development to keep the platform alive, but the transfer raises questions about openness, continuity, and whether the rescue is preservation or managed winding-down.",
+      "analogy_signature": "Platform loses market, foundation exits, incumbent vendor takes control",
+      "missing_information_a_reporter_might_seek": [
+        "How much development capacity and budget Nokia is committing to Symbian",
+        "Whether Nokia plans to keep Symbian open source in future releases",
+        "How developers and handset partners are expected to respond to the governance change",
+        "What proportion of Nokia phones still depend on Symbian at the time",
+        "Which employees are leaving and what technical expertise may be lost",
+        "Whether this is a temporary stewardship transfer or the start of a full phase-out",
+        "How the Qt migration will affect existing Symbian applications and users"
+      ]
+    }
+  },
+  {
+    "id": "4",
+    "title": "Wales loses all BBC TV and Radio services",
+    "date": "2008-09-28",
+    "category": "Science and technology",
+    "url": "https://en.wikinews.org/wiki/Wales_loses_all_BBC_TV_and_Radio_services",
+    "schema": {
+      "headline": "Wales loses all BBC TV and Radio services",
+      "topic": "media / infrastructure",
+      "story_type": "service outage caused by infrastructure failure",
+      "trigger_event": "A major power failure at BBC Broadcasting House in Llandaff took Welsh BBC services off air, and backup generators failed to start",
+      "central_conflict": "A public broadcasting system depended on a single site and its backup safeguards, but when both primary power and emergency backup failed, an entire regional media service collapsed, leaving audiences without expected news and language programming",
+      "main_actors": [
+        "BBC",
+        "Broadcasting House in Llandaff, Cardiff",
+        "BBC Wales regional TV services",
+        "BBC Radio Wales",
+        "BBC Radio Cymru",
+        "BBC Northern Ireland feed",
+        "BBC Radio 4 long wave service"
+      ],
+      "affected_group": "Viewers and listeners in Wales, especially Welsh-language audiences",
+      "stakes": "The outage disrupted access to essential public-information and cultural broadcasting, exposing vulnerability in critical communications infrastructure and the fragility of regional service continuity",
+      "causal_chain": [
+        "A power failure struck Broadcasting House in Llandaff",
+        "BBC Wales TV and radio services lost primary power",
+        "Backup generators failed to start",
+        "Analogue, DTT, and satellite services went off air for over 7 hours",
+        "BBC1 and BBC2 Wales opt-outs were replaced by BBC Northern Ireland feeds",
+        "BBC Radio Wales fell silent",
+        "BBC Radio Cymru switched temporarily to BBC Radio 4 long wave",
+        "BBC News and Sport interactive services for Wales went offline",
+        "Service was eventually restored at 17:05 UTC"
+      ],
+      "narrative_schema": "A vital public service is abruptly interrupted when a central infrastructure node fails and its backup systems also fail, forcing emergency substitution, exposing overdependence on a single facility, and creating accountability questions about resilience and continuity planning.",
+      "analogy_signature": "Single-point infrastructure failure knocks out essential public service",
+      "missing_information_a_reporter_might_seek": [
+        "What exactly caused the initial power failure at Broadcasting House?",
+        "Why did the backup generators fail to start?",
+        "Was this a maintenance, design, or operational problem?",
+        "How often are BBC Wales backup systems tested?",
+        "What contingency plans existed for replacing Welsh-language and regional programming?",
+        "How many households were affected and for how long?",
+        "Were there any warnings or prior incidents at the facility?",
+        "What steps is the BBC taking to prevent a repeat outage?"
+      ]
+    }
+  },
+  {
+    "id": "5",
+    "title": "Heavy snow fall disrupts UK transportation and communications",
+    "date": "2009-02-02",
+    "category": "Weather",
+    "url": "https://en.wikinews.org/wiki/Heavy_snow_fall_disrupts_UK_transportation_and_communications",
+    "schema": {
+      "headline": "Heavy snow fall disrupts UK transportation and communications",
+      "topic": "disaster / transportation",
+      "story_type": "Infrastructure disruption from extreme weather",
+      "trigger_event": "An unusually heavy snowfall hit the UK, especially London and southeast England, triggering widespread travel, school, and communications disruption.",
+      "central_conflict": "A public system built for normal winter conditions was overwhelmed by rare severe snow, creating a mismatch between weather severity and the capacity of transport, road-clearing, and communications networks.",
+      "main_actors": [
+        "Weather systems bringing cold air from the east and snow from the North Sea",
+        "Met Office",
+        "England's Highways Agency",
+        "National Rail Enquiries",
+        "Transport for London",
+        "South West Trains",
+        "Heathrow, City, Gatwick, and Stansted airports",
+        "Mobile network operators such as 3 and T-Mobile UK",
+        "Travelers and commuters",
+        "Schools and local authorities"
+      ],
+      "affected_group": "Commuters, travelers, students, and residents in London and southeast England",
+      "stakes": "The story matters because essential mobility and communication systems were disrupted at once, affecting work, school, safety, and access to services across a densely populated region.",
+      "causal_chain": [
+        "Cold air moved westward from Poland and Russia toward the British Isles",
+        "Snow fell as weather systems crossed the North Sea and frontal systems pushed in from the southeast",
+        "Unusually heavy accumulation hit southeast England and London",
+        "Roads, rail, and airports became hazardous or delayed, with some routes blocked or closed",
+        "Schools closed in many affected areas and authorities warned against nonessential travel",
+        "Heavy user demand also crashed transport websites and strained mobile networks",
+        "Meteorologists issued further warnings, indicating the disruption could continue"
+      ],
+      "narrative_schema": "A rare natural event exposes the fragility of interconnected public infrastructure: when one severe shock exceeds normal planning assumptions, transport, schooling, digital information systems, and consumer communications all fail together, turning a weather event into a broader civic disruption.",
+      "analogy_signature": "Rare shock overwhelms interconnected infrastructure",
+      "missing_information_a_reporter_might_seek": [
+        "How well did local authorities and transport operators prepare for the snowfall before it arrived?",
+        "Which parts of the transport network failed first, and why were some routes more resilient than others?",
+        "How many people were stranded, delayed, or unable to reach work and school?",
+        "Were the website outages caused purely by traffic spikes, or by technical failures in the systems themselves?",
+        "How effective were gritting, road closures, and airport contingency plans?",
+        "Did vulnerable populations face disproportionate harm, such as elderly residents or essential workers?",
+        "How did this snowfall compare operationally with previous severe winter events?"
+      ]
+    }
+  },
+  {
+    "id": "6",
+    "title": "Hawaii legislature reaches agreement to suspend gasoline price cap",
+    "date": "2006-04-30",
+    "category": "Politics and conflicts",
+    "url": "https://en.wikinews.org/wiki/Hawaii_legislature_reaches_agreement_to_suspend_gasoline_price_cap",
+    "schema": {
+      "headline": "Hawaii legislature agrees to suspend gasoline price cap",
+      "topic": "economy",
+      "story_type": "Policy reversal after regulatory dispute",
+      "trigger_event": "Conference committee negotiators reached a compromise to suspend Hawaii’s gasoline price-cap law after the House and Senate deadlocked over whether to repeal or modify it.",
+      "central_conflict": "Lawmakers are split over whether government should keep controlling gasoline prices during a period of high prices, with supporters of the cap arguing for consumer protection and opponents arguing the law is flawed and politically damaging; the compromise also raises questions about who should have the power to reinstate it.",
+      "main_actors": [
+        "Hawaii state legislature",
+        "Conference committee negotiators",
+        "House of Representatives",
+        "Senate",
+        "Governor Linda Lingle",
+        "Senator Ron Menor",
+        "Oil companies",
+        "Gasoline retailers",
+        "Hawaii consumers/drivers"
+      ],
+      "affected_group": "Drivers and households in Hawaii, especially those on Oahu and the Neighbor Islands facing the nation’s highest gasoline prices",
+      "stakes": "The decision affects what consumers pay for fuel, whether the state keeps using price controls in a key market, how much transparency oil companies must provide, and whether lawmakers can claim credit or avoid blame for high gas prices.",
+      "causal_chain": [
+        "Hawaii adopted a gasoline price-cap law using Mainland wholesale benchmarks to set maximum charges.",
+        "Oil-company profits and rising fuel costs drew scrutiny, and the law became politically contentious.",
+        "After Hurricane Katrina disrupted gasoline supply, prices in Hawaii rose above $3 per gallon.",
+        "The House pushed to repeal the law, while the Senate favored changing the formula.",
+        "Negotiators deadlocked over how the cap should be calculated and at what level.",
+        "As the legislative deadline approached, leaders brokered a compromise to suspend the cap indefinitely while still calculating it.",
+        "The governor would gain sole discretion to restore the cap, and oil-company profit reporting would increase."
+      ],
+      "narrative_schema": "A state experiments with market regulation to protect consumers, but the policy becomes controversial when real-world price shocks expose flaws in the formula and split lawmakers; after institutional deadlock, leaders adopt a temporary rollback that preserves an off-ramp, shifting control from automatic regulation to executive discretion.",
+      "analogy_signature": "Failed price control → legislative deadlock → temporary suspension with executive veto power",
+      "missing_information_a_reporter_might_seek": [
+        "What specific evidence showed the cap was contributing to higher prices, if any?",
+        "How much would consumers save or lose under repeal, modification, or suspension?",
+        "What do oil companies say about the cap’s effect on supply, profits, and pricing?",
+        "Why did Senator Ron Menor change his position, and what concessions were made?",
+        "What reporting requirements on oil-company profits will actually be imposed?",
+        "What criteria, if any, will the governor use to reinstate the cap?",
+        "How do prices in Hawaii compare with other states after accounting for taxes, transport, and market structure?"
+      ]
+    }
+  },
+  {
+    "id": "7",
+    "title": "Horse found dead along busy street in Atlanta, Georgia ten days after being bought at auction",
+    "date": "2025-04-11",
+    "category": "Disasters and accidents",
+    "url": "https://en.wikinews.org/wiki/Horse_found_dead_along_busy_street_in_Atlanta,_Georgia_ten_days_after_being_bought_at_auction",
+    "schema": {
+      "headline": "Horse found dead on downtown Atlanta sidewalk days after auction purchase",
+      "topic": "Local news / animal welfare",
+      "story_type": "mystery death in public space",
+      "trigger_event": "A horse was discovered dead on a busy downtown Atlanta sidewalk after reports of it collapsing there overnight.",
+      "central_conflict": "Authorities and onlookers are left trying to determine whether the horse died from a medical emergency, neglect, or some other cause, while questions remain about why it was being ridden or present in the city center at all.",
+      "main_actors": [
+        "Horse owner",
+        "Atlanta Police Department",
+        "Atlanta Fire Rescue Department",
+        "Building owner Jon Birdsong",
+        "Witnesses and passersby",
+        "Local horse trainer Laurie Wilson",
+        "Atlanta agricultural department",
+        "Animal control center",
+        "Local real estate company reviewing security footage"
+      ],
+      "affected_group": "The horse and, more broadly, the public and animal-welfare oversight system in Atlanta",
+      "stakes": "The story raises concerns about animal treatment, public safety in a crowded downtown area, and accountability for how a horse ended up dying unattended on a city sidewalk.",
+      "causal_chain": [
+        "The horse was purchased at auction about ten days earlier",
+        "It was brought into downtown Atlanta for reasons that remain unclear",
+        "Witnesses reported multiple people horseback riding in the area overnight",
+        "The horse apparently collapsed on or near a sidewalk downtown",
+        "Police and firefighters responded after 911 calls",
+        "Attempts were made to provide food, water, and cover the animal",
+        "The horse remained on the sidewalk for hours before removal",
+        "Authorities notified the owner, who suggested a medical emergency",
+        "Investigators began reviewing security footage and other evidence to determine what happened"
+      ],
+      "narrative_schema": "An unusual and visible death of an animal in a public urban space creates an accountability mystery: officials must explain both the immediate cause of death and the broader circumstances that placed the animal there, while the public reacts to the spectacle and questions of care, legality, and responsibility.",
+      "analogy_signature": "Public-animal death in an urban space with unclear responsibility and incomplete explanation",
+      "missing_information_a_reporter_might_seek": [
+        "What was the horse doing in downtown Atlanta and who brought it there?",
+        "Who exactly owned and was responsible for the horse at the time of death?",
+        "Was the horse being ridden legally, and were any permits or event permissions involved?",
+        "What did the veterinary or medical examination show as the cause of death?",
+        "How long had the horse been dead before police arrived and before removal?",
+        "Did surveillance footage capture the horse’s final movements or the people with it?",
+        "Were any animal welfare or criminal laws potentially violated?",
+        "What role, if any, did the 404 Day festivities or prior auction purchase play in the incident?"
+      ]
+    }
+  },
+  {
+    "id": "8",
+    "title": "Greek singer Demis Roussos dies aged 68",
+    "date": "2015-01-27",
+    "category": "Obituaries",
+    "url": "https://en.wikinews.org/wiki/Greek_singer_Demis_Roussos_dies_aged_68",
+    "schema": {
+      "headline": "Greek singer Demis Roussos dies aged 68",
+      "topic": "Culture / obituary",
+      "story_type": "Obituary of an internationally successful artist",
+      "trigger_event": "The death of Demis Roussos in a private hospital in Athens, with tributes from former collaborators and fellow musicians.",
+      "central_conflict": "The story is not a dispute but a retrospective tension between a globally loved public persona and the private end of a life marked by migration, fame, and historical upheaval. It also lightly raises questions about illness and the absence of an official cause of death.",
+      "main_actors": [
+        "Demis Roussos",
+        "Vangelis",
+        "Nana Mouskouri",
+        "Aphrodite's Child",
+        "The Idols",
+        "Roussos's family",
+        "Private hospital in Athens"
+      ],
+      "affected_group": "Fans and the international music audience that followed his work; also former bandmates and collaborators mourning his death.",
+      "stakes": "The loss of a distinctive voice that helped define an era of popular and progressive rock music, plus the preservation of cultural memory around his career and life across multiple countries.",
+      "causal_chain": [
+        "Roussos was born in Egypt to a Greek family and left after the Suez crisis.",
+        "He studied and performed music in a Greek church, then entered cabaret and local bands as a teenager.",
+        "He joined The Idols, met Vangelis, and later formed Aphrodite's Child.",
+        "After success with the group, he launched a solo career and scored major international hits.",
+        "He lived and worked across several countries, building a transnational fan base.",
+        "He was held hostage during the 1985 TWA Flight 847 hijacking, adding a dramatic chapter to his life story.",
+        "He received the French Legion of Honour in 2013.",
+        "He died in Athens in a private hospital after some time there, prompting tributes from peers."
+      ],
+      "narrative_schema": "A culturally celebrated artist with a transnational life story dies after a period of private illness, and the public response turns to remembrance: not a controversy over wrongdoing, but a reconstruction of how an individual voice traveled across borders, groups, and eras to become part of collective memory.",
+      "analogy_signature": "Iconic transnational performer dies; tributes recall career, migration, and legacy",
+      "missing_information_a_reporter_might_seek": [
+        "What was the official cause of death?",
+        "What specific illness or condition had kept him in the hospital?",
+        "Who are the surviving family members and do they plan any public memorial?",
+        "How did colleagues and fans in Greece, France, the UK, and elsewhere respond?",
+        "What is the historical significance of his work with Aphrodite's Child versus his solo career?",
+        "How did the hijacking ordeal affect his later life and career, if at all?"
+      ]
+    }
+  },
+  {
+    "id": "9",
+    "title": "Long Beach, CA Redevelopment Agency ends talks for church",
+    "date": "2006-03-28",
+    "category": "Politics and conflicts",
+    "url": "https://en.wikinews.org/wiki/Long_Beach,_CA_Redevelopment_Agency_ends_talks_for_church",
+    "schema": {
+      "headline": "Long Beach redevelopment board ends talks over church property",
+      "topic": "law / urban redevelopment",
+      "story_type": "public takeover of property under redevelopment pressure",
+      "trigger_event": "The redevelopment board voted to end negotiations over a church property after previously authorizing eminent domain consideration.",
+      "central_conflict": "A public redevelopment authority wants to control a privately owned property in a target corridor, while the church seeks clarity, notice, and protection against forced acquisition amid opaque board proceedings.",
+      "main_actors": [
+        "Long Beach Redevelopment Board",
+        "Filipino Baptist Fellowship church",
+        "John Eastman, church attorney",
+        "Rev. Agustine, church pastor",
+        "Thomas Fields, board chair",
+        "Jan Pittman, City Clerk"
+      ],
+      "affected_group": "The Filipino Baptist Fellowship congregation and property owners in the redevelopment area",
+      "stakes": "The fate of a purchased church property, the potential use of eminent domain, and the broader question of how redevelopment powers are exercised over existing community institutions.",
+      "causal_chain": [
+        "The city launched a redevelopment project in 1996 targeting the Atlantic Avenue corridor.",
+        "Most surrounding properties were acquired and razed, changing the neighborhood context.",
+        "The Filipino Baptist Fellowship bought its church property on the open market in 2002.",
+        "The redevelopment board had already authorized eminent domain review in March.",
+        "At the meeting, the church attorney said the agenda was too vague to explain what was being decided.",
+        "The board held a closed session and then announced negotiations were over.",
+        "City Clerk Jan Pittman interpreted the decision as meaning the board would not proceed with eminent domain, though procedures could still be initiated elsewhere without notice."
+      ],
+      "narrative_schema": "A government redevelopment campaign advances through a neighborhood by acquiring and clearing properties one by one, then encounters a remaining privately owned institution that does not fit the planned land use. The public authority uses negotiated purchase and the threat of eminent domain, but the process is obscured by procedural ambiguity and closed-door decision-making, leaving the affected owner uncertain whether the property is truly safe or merely in the path of a delayed takeover.",
+      "analogy_signature": "Redevelopment authority vs. holdout property under threatened eminent domain",
+      "missing_information_a_reporter_might_seek": [
+        "What exactly did the board vote on in closed session?",
+        "Was eminent domain formally abandoned or only deferred?",
+        "What legal notice and due-process protections apply if proceedings begin in Norton?",
+        "What redevelopment plans are proposed for the west side of Atlantic Avenue?",
+        "How was the church property valued, and what terms were offered in negotiations?",
+        "Why was the church singled out after years of redevelopment in the area?",
+        "What impact would acquisition have on the congregation's ability to continue operating?"
+      ]
+    }
+  },
+  {
+    "id": "10",
+    "title": "Researchers find preserving spotted owl habitat may not require a tradeoff with wildfire risk after all",
+    "date": "2017-10-08",
+    "category": "Science and technology",
+    "url": "https://en.wikinews.org/wiki/Researchers_find_preserving_spotted_owl_habitat_may_not_require_a_tradeoff_with_wildfire_risk_after_all",
+    "schema": {
+      "headline": "Preserving spotted owl habitat may not require a wildfire tradeoff",
+      "topic": "Environment / wildlife conservation",
+      "story_type": "Policy tradeoff reconsidered by new evidence",
+      "trigger_event": "A new LiDAR-based study mapped spotted owl nesting sites against forest structure and found owls favor very tall-tree stands, suggesting habitat protection can be separated from retaining dense small trees that increase wildfire risk.",
+      "central_conflict": "Forest managers have been told to preserve dense canopy to protect endangered owl habitat, but that same structure can intensify wildfire and drought mortality; the question is whether conservation rules are based on the right habitat metric.",
+      "main_actors": [
+        "UC Davis researchers",
+        "USDA Forest Service Pacific Southwest Research Station",
+        "University of Washington researchers",
+        "National Park Service forests in Kings Canyon and Sequoia National Parks",
+        "Endangered California spotted owls",
+        "Forest managers",
+        "Environmentalists",
+        "Timber interests and logging communities",
+        "U.S. Fish and Wildlife Service"
+      ],
+      "affected_group": "Spotted owls and the forests they depend on, along with communities exposed to wildfire risk and forest managers trying to balance conservation and resilience",
+      "stakes": "If the habitat standard is wrong, conservation policy may be unnecessarily increasing wildfire danger and tree loss; if it is revised, managers could protect owl habitat while reducing fuel loads and improving forest resilience under climate change.",
+      "causal_chain": [
+        "Earlier habitat policy emphasized maintaining at least 70% canopy cover",
+        "That standard encouraged retention of dense forest structure",
+        "Dense stands can be more vulnerable to wildfire and drought mortality",
+        "Researchers used LiDAR to measure forest structure more precisely in two California parks",
+        "They cross-referenced those measurements with decades of owl nest locations",
+        "The owls were found to cluster in very tall tree stands, not simply in any densely canopied area",
+        "This implies small-tree density may be reduced without sacrificing key owl habitat",
+        "Forest thinning and fire management could then be used to lower wildfire risk while preserving large-tree habitat"
+      ],
+      "narrative_schema": "A long-standing conservation rule built on a coarse indicator of habitat quality creates an apparent clash with another public-interest goal, but new spatial evidence shows the species actually depends on a narrower structural feature. By identifying the true ecological requirement, the story reframes a zero-sum tradeoff as a design problem: protect the critical resource while removing the unnecessary hazard.",
+      "analogy_signature": "False tradeoff revealed by better habitat measurement",
+      "missing_information_a_reporter_might_seek": [
+        "How many owl nest sites were analyzed, and over what time span?",
+        "What exact thresholds for tree height or stand structure best predicted owl presence?",
+        "How widely accepted is the new finding among independent forest ecologists?",
+        "Would the recommended thinning prescriptions be feasible outside the two national parks studied?",
+        "Could reducing small trees affect prey, microclimate, or other owl needs not captured by canopy height alone?",
+        "How do state and federal agencies plan to update conservation rules, if at all?",
+        "What are the implications for logging, prescribed fire, and wildfire management on adjacent lands?"
+      ]
+    }
+  }
+]

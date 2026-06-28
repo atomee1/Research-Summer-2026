@@ -1,6 +1,0 @@
-openai
-pydantic
-python-dotenv
-pandas
-scikit-learn
-streamlit

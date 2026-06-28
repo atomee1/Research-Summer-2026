@@ -1,6 +1,5 @@
-.venv/
-.env
-__pycache__/
-*.pyc
-.ipynb_checkpoints/
-data/schema_cards.jsonl
+web/node_modules/
+web/.next/
+web/out/
+web/.env.local
+web/.env*.local
