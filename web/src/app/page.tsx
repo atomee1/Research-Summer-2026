@@ -4,6 +4,8 @@ import { useMemo, useState } from "react";
 import schemaCardsRaw from "@/data/schemaCards.json";
 import type { ArticleRecord, SchemaCard } from "@/lib/schema";
 import { findAnalogies } from "@/lib/analogySearch";
+import { CausalTreeGraph } from "@/components/CausalTreeGraph";
+import type { CausalTree } from "@/lib/schema";
 
 const schemaCards = schemaCardsRaw as ArticleRecord[];
 
@@ -14,6 +16,8 @@ export default function Home() {
   const [articleText, setArticleText] = useState("");
   const [generatedSchema, setGeneratedSchema] = useState<SchemaCard | null>(null);
   const [loading, setLoading] = useState(false);
+  const [causalTree, setCausalTree] = useState<CausalTree | null>(null);
+  const [causalLoading, setCausalLoading] = useState(false);
 
   const selectedArticle = schemaCards.find((record) => record.id === selectedId);
 
@@ -49,6 +53,36 @@ export default function Home() {
       alert(error instanceof Error ? error.message : "Unknown error.");
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function extractCausalTree() {
+    setCausalLoading(true);
+    setCausalTree(null);
+
+    try {
+      const response = await fetch("/api/extract-causal-tree", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          title,
+          text: articleText,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error ?? "Causal tree extraction failed.");
+      }
+
+      setCausalTree(data.tree);
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "Unknown error.");
+    } finally {
+      setCausalLoading(false);
     }
   }
 
@@ -151,13 +185,23 @@ export default function Home() {
             onChange={(event) => setArticleText(event.target.value)}
           />
 
-          <button
-            className="mt-3 rounded-lg bg-blue-500 px-4 py-2 font-medium text-white disabled:opacity-50"
-            onClick={extractSchema}
-            disabled={loading}
-          >
-            {loading ? "Extracting..." : "Extract schema"}
-          </button>
+          <div className="mt-3 flex flex-wrap gap-3">
+            <button
+              className="rounded-lg bg-blue-500 px-4 py-2 font-medium text-white disabled:opacity-50"
+              onClick={extractSchema}
+              disabled={loading}
+            >
+              {loading ? "Extracting schema..." : "Extract schema"}
+            </button>
+
+            <button
+              className="rounded-lg bg-purple-500 px-4 py-2 font-medium text-white disabled:opacity-50"
+              onClick={extractCausalTree}
+              disabled={causalLoading}
+            >
+              {causalLoading ? "Extracting causal tree..." : "Extract causal tree"}
+            </button>
+          </div>
 
           {generatedSchema && (
             <div className="mt-5 rounded-lg border border-slate-800 bg-slate-950 p-4">
@@ -167,6 +211,8 @@ export default function Home() {
               </pre>
             </div>
           )}
+
+          {causalTree && <CausalTreeGraph tree={causalTree} />}
         </section>
       </div>
     </main>
