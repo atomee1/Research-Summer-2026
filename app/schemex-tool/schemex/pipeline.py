@@ -1,4 +1,4 @@
-"""Pipeline stages: Clustering -> Abstraction -> Refinement.
+"""Pipeline stages: Clustering -> Abstraction -> Refinement -> Graph Report
 
 Each stage is a plain function so it's easy to call from a script, a
 notebook, or the CLI in cli.py. Interactivity is handled by passing
