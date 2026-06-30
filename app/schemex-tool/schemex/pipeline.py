@@ -329,6 +329,8 @@ def run_pipeline(
     state.save()
 
     report_path = state.write_report()
+    graph_path = state.write_graph_html()
     print(f"\nDone. Report written to {report_path}")
+    print(f"Graph written to  {graph_path}")
     print(f"Full state written to {output_dir}/state.json")
     return state
