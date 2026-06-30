@@ -1,4 +1,4 @@
-"""Pipeline stages: Clustering -> Abstraction -> Refinement -> Graph Report
+"""Pipeline stages: Clustering -> Abstraction -> Refinement.
 
 Each stage is a plain function so it's easy to call from a script, a
 notebook, or the CLI in cli.py. Interactivity is handled by passing
@@ -13,15 +13,25 @@ from typing import Dict, List, Optional
 
 from .io_utils import RunState, examples_by_id
 from .llm import ClaudeClient
-from .models import Cluster, Example, RefinementRound, Schema, SchemaComponent
+from .models import (
+    Cluster,
+    CoverageItem,
+    CoverageReport,
+    Example,
+    RefinementRound,
+    Schema,
+    SchemaComponent,
+)
 from .prompts import (
     ABSTRACTION_SYSTEM,
     CLUSTERING_SYSTEM,
     COMPARISON_SYSTEM,
+    COVERAGE_SYSTEM,
     GENERATION_SYSTEM,
     build_abstraction_prompt,
     build_clustering_prompt,
     build_comparison_prompt,
+    build_coverage_prompt,
     build_generation_prompt,
 )
 
@@ -293,6 +303,77 @@ def _interactive_review_refinement(
         "\nAccept the new schema version? [y]es / [n]o, keep previous: "
     ).strip().lower()
     return choice in ("", "y", "yes")
+
+
+# ---------------------------------------------------------------------------
+# Stage 4: Coverage check -- compare a journalist's draft against a schema
+# ---------------------------------------------------------------------------
+
+def pick_best_cluster(
+    client: ClaudeClient,
+    draft_text: str,
+    clusters: List[Cluster],
+) -> Cluster:
+    """Ask the model which existing cluster's structural pattern best fits
+    a draft, when the caller hasn't specified one explicitly."""
+    if len(clusters) == 1:
+        return clusters[0]
+
+    options = "\n".join(
+        f"- {c.id}: {c.name} -- {c.rationale}" for c in clusters
+    )
+    prompt = (
+        "Here is a journalist's draft, and a list of structural patterns "
+        "(clusters) discovered from real articles. Which single cluster's "
+        "structural pattern does this draft most resemble?\n\n"
+        f"DRAFT:\n---\n{draft_text[:3000]}\n---\n\n"
+        f"CLUSTERS:\n{options}\n\n"
+        'Return a JSON object: {"cluster_id": "the best matching cluster id"}'
+    )
+    system = (
+        "You match a piece of writing to the structural pattern (not "
+        "topic) it most closely resembles, from a fixed list of "
+        "candidates. Pick exactly one, even if the fit is imperfect."
+    )
+    raw = client.complete_json(system, prompt)
+    chosen_id = raw.get("cluster_id") if isinstance(raw, dict) else None
+    match = next((c for c in clusters if c.id == chosen_id), None)
+    if match is None:
+        print(f"  [warning] model returned an unrecognized cluster id "
+              f"'{chosen_id}', defaulting to the first cluster.")
+        return clusters[0]
+    return match
+
+
+def run_coverage_check(
+    client: ClaudeClient,
+    draft_path: str,
+    draft_text: str,
+    schema: Schema,
+    cluster: Cluster,
+) -> CoverageReport:
+    """Run Stage 4: check a journalist's draft against a schema, component
+    by component, and report what's present / weak / missing."""
+    print(f"[coverage] checking '{draft_path}' against schema for cluster "
+          f"'{cluster.name}' (v{schema.version}) ...")
+
+    prompt = build_coverage_prompt(schema, draft_text, cluster.name)
+    raw = client.complete_json(COVERAGE_SYSTEM, prompt)
+
+    items = [CoverageItem.from_dict(i) for i in raw.get("items", [])]
+    report = CoverageReport(
+        draft_path=draft_path,
+        cluster_id=cluster.id,
+        cluster_name=cluster.name,
+        schema_version=schema.version,
+        items=items,
+        overall_summary=raw.get("overall_summary", ""),
+    )
+
+    counts = report.counts()
+    print(f"  -> {counts['present']} present, {counts['weak']} weak, "
+          f"{counts['missing']} missing")
+    return report
 
 
 # ---------------------------------------------------------------------------

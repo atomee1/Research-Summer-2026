@@ -5,7 +5,7 @@ import json
 import os
 from typing import Any, Dict, List
 
-from .models import Cluster, Example, RefinementRound, Schema
+from .models import Cluster, CoverageReport, Example, RefinementRound, Schema
 
 
 def load_examples(path: str) -> List[Example]:
@@ -41,6 +41,52 @@ def load_examples(path: str) -> List[Example]:
 
 def examples_by_id(examples: List[Example]) -> Dict[str, Example]:
     return {ex.id: ex for ex in examples}
+
+
+_STATUS_MARK = {"present": "✓", "weak": "⚠", "missing": "✗"}
+
+
+def write_coverage_report(report: CoverageReport, output_dir: str) -> str:
+    """Write a coverage check result as both JSON and a readable Markdown
+    file, named after the draft so multiple checks don't overwrite each
+    other. Returns the path to the Markdown file."""
+    os.makedirs(output_dir, exist_ok=True)
+
+    base = os.path.splitext(os.path.basename(report.draft_path))[0]
+    json_path = os.path.join(output_dir, f"coverage_{base}.json")
+    md_path = os.path.join(output_dir, f"coverage_{base}.md")
+
+    with open(json_path, "w", encoding="utf-8") as f:
+        json.dump(report.to_dict(), f, indent=2)
+
+    counts = report.counts()
+    lines = [
+        f"# Coverage check: {os.path.basename(report.draft_path)}",
+        "",
+        f"**Matched schema:** {report.cluster_name} (v{report.schema_version})",
+        "",
+        f"**Coverage:** {counts['present']} present, {counts['weak']} weak, "
+        f"{counts['missing']} missing (of {len(report.items)} components)",
+        "",
+    ]
+    if report.overall_summary:
+        lines += ["## Summary", "", report.overall_summary, ""]
+
+    lines += ["## Component-by-component", ""]
+    for item in report.items:
+        mark = _STATUS_MARK.get(item.status, "?")
+        lines.append(f"### {mark} {item.component_name} — {item.status}")
+        lines.append("")
+        lines.append(item.explanation)
+        if item.suggestion:
+            lines.append("")
+            lines.append(f"**Suggestion:** {item.suggestion}")
+        lines.append("")
+
+    with open(md_path, "w", encoding="utf-8") as f:
+        f.write("\n".join(lines))
+
+    return md_path
 
 
 class RunState:

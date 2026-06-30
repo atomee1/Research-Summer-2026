@@ -183,9 +183,57 @@ def build_generation_prompt(schema: Schema, title: str) -> str:
     )
 
 
+COVERAGE_SYSTEM = """You are an experienced editor checking whether a \
+journalist's draft covers everything expected of its structural type, \
+based on a schema derived from real published examples of that type. You \
+are looking for missing or underdeveloped components -- the kind of gap \
+an editor would flag before publication. Be specific and concrete: point \
+to what is actually missing or weak, not generic praise or criticism. If \
+a component IS present but doesn't fully meet its attributes, mark it \
+"weak" rather than "present" or "missing", and explain exactly which \
+attribute isn't met. Do not invent issues that aren't there -- if a \
+component is genuinely well covered, say so plainly."""
+
+COVERAGE_USER_TEMPLATE = """SCHEMA (cluster: "{cluster_name}"):
+{schema_block}
+
+DRAFT TO CHECK:
+---
+{draft_text}
+---
+
+For EVERY component in the schema, decide whether the draft has it, and \
+how well it meets the component's attributes. Use status "present" \
+(clearly there and meets the attributes), "weak" (present but missing one \
+or more attributes, vague, or underdeveloped), or "missing" (not present \
+at all).
+
+Return a JSON object shaped like:
+{{
+  "items": [
+    {{
+      "component_name": "Component name (must match schema exactly)",
+      "status": "present" | "weak" | "missing",
+      "explanation": "1-3 sentences: what's there, what's missing, or what's weak, citing the relevant attribute(s)",
+      "suggestion": "if weak or missing, a concrete, actionable suggestion for what to add or fix. Empty string if present."
+    }},
+    ...
+  ],
+  "overall_summary": "2-4 sentences: the single most important gap to fix before this draft is ready, and the overall coverage picture"
+}}"""
+
+
 def build_comparison_prompt(schema: Schema, generated_text: str, real_text: str) -> str:
     return COMPARISON_USER_TEMPLATE.format(
         schema_block=schema.as_prompt_block(),
         generated_text=generated_text,
         real_text=real_text,
+    )
+
+
+def build_coverage_prompt(schema: Schema, draft_text: str, cluster_name: str) -> str:
+    return COVERAGE_USER_TEMPLATE.format(
+        cluster_name=cluster_name,
+        schema_block=schema.as_prompt_block(),
+        draft_text=draft_text.strip(),
     )

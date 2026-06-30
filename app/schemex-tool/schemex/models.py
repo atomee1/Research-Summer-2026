@@ -120,6 +120,67 @@ class Schema:
 
 
 @dataclass
+class CoverageItem:
+    """Result of checking one schema component against a journalist's draft."""
+
+    component_name: str
+    status: str  # "present", "missing", "weak"
+    explanation: str
+    suggestion: str = ""
+
+    def to_dict(self) -> Dict[str, Any]:
+        return asdict(self)
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "CoverageItem":
+        return cls(
+            component_name=d["component_name"],
+            status=d.get("status", "missing"),
+            explanation=d.get("explanation", ""),
+            suggestion=d.get("suggestion", ""),
+        )
+
+
+@dataclass
+class CoverageReport:
+    """Full result of running `schemex check` on one draft against one schema."""
+
+    draft_path: str
+    cluster_id: str
+    cluster_name: str
+    schema_version: int
+    items: List[CoverageItem]
+    overall_summary: str = ""
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "draft_path": self.draft_path,
+            "cluster_id": self.cluster_id,
+            "cluster_name": self.cluster_name,
+            "schema_version": self.schema_version,
+            "items": [i.to_dict() for i in self.items],
+            "overall_summary": self.overall_summary,
+        }
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "CoverageReport":
+        return cls(
+            draft_path=d["draft_path"],
+            cluster_id=d["cluster_id"],
+            cluster_name=d.get("cluster_name", ""),
+            schema_version=d.get("schema_version", 1),
+            items=[CoverageItem.from_dict(i) for i in d.get("items", [])],
+            overall_summary=d.get("overall_summary", ""),
+        )
+
+    def counts(self) -> Dict[str, int]:
+        out = {"present": 0, "weak": 0, "missing": 0}
+        for item in self.items:
+            out[item.status] = out.get(item.status, 0) + 1
+        return out
+
+
+@dataclass
 class RefinementRound:
     """Record of one apply-and-test iteration for a single cluster."""
 
