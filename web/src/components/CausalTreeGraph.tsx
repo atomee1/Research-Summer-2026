@@ -55,6 +55,21 @@ function formatLabel(value: string) {
   return value.replaceAll("_", " ");
 }
 
+function supportLabelText(label: CausalEdge["support_label"]) {
+  switch (label) {
+    case "high":
+      return "High support";
+    case "medium":
+      return "Medium support";
+    case "low":
+      return "Low support";
+    case "speculative":
+      return "Speculative";
+    default:
+      return "Support unclear";
+  }
+}
+
 function CausalNodeCard({ data }: NodeProps) {
   const nodeData = data as unknown as CausalNodeData;
 
@@ -159,8 +174,8 @@ function treeToFlow(tree: CausalTree) {
         id: node.id,
         type: "causalNode",
         position: {
-          x: (maxDepth - depth) * 360,
-          y: index * 220,
+          x: (maxDepth - depth) * 430,
+          y: index * 250,
         },
         data: {
           label: node.label,
@@ -177,7 +192,7 @@ function treeToFlow(tree: CausalTree) {
     id: `${edge.from}-${edge.to}`,
     source: edge.from,
     target: edge.to,
-    label: `${edge.support_label} · ${Math.round(edge.support_score * 100)}%`,
+    label: supportLabelText(edge.support_label),
     animated: edge.support_label === "speculative",
     markerEnd: {
       type: MarkerType.ArrowClosed,
@@ -189,7 +204,7 @@ function treeToFlow(tree: CausalTree) {
     },
     labelStyle: {
       fill: "#e2e8f0",
-      fontSize: 12,
+      fontSize: 11,
       fontWeight: 600,
     },
     labelBgStyle: {
@@ -201,11 +216,39 @@ function treeToFlow(tree: CausalTree) {
   return { nodes: flowNodes, edges: flowEdges };
 }
 
+function CausalGraphLegend() {
+  return (
+    <div className="mb-4 rounded-lg border border-slate-800 bg-slate-900 p-4 text-sm text-slate-300">
+      <h4 className="font-semibold text-slate-100">How to read this graph</h4>
+
+      <ul className="mt-2 list-disc space-y-1 pl-5">
+        <li>
+          Arrows point from a proposed cause or contributing factor toward the
+          event it helps explain.
+        </li>
+        <li>
+          Edge labels show how strongly the article supports the causal link,
+          not the real-world probability that the cause is true.
+        </li>
+        <li>
+          Thicker green edges are strongly supported. Yellow/orange edges are
+          weaker or more interpretive. Red/animated edges are speculative.
+        </li>
+        <li>
+          Click a node or edge to inspect evidence, rationale, and reporting
+          questions.
+        </li>
+      </ul>
+    </div>
+  );
+}
+
 export function CausalTreeGraph({ tree }: Props) {
   const { nodes, edges } = useMemo(() => treeToFlow(tree), [tree]);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(
     tree.root_event_id
   );
+  const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
 
   const selectedNode =
     tree.nodes.find((node) => node.id === selectedNodeId) ??
@@ -220,6 +263,10 @@ export function CausalTreeGraph({ tree }: Props) {
     ? tree.edges.filter((edge) => edge.from === selectedNode.id)
     : [];
 
+  const selectedEdge = selectedEdgeId
+  ? tree.edges.find((edge) => `${edge.from}-${edge.to}` === selectedEdgeId)
+  : null;
+
   const nodeById = new Map(tree.nodes.map((node) => [node.id, node]));
 
   return (
@@ -229,8 +276,10 @@ export function CausalTreeGraph({ tree }: Props) {
         <p className="mt-2 text-sm text-slate-300">{tree.summary}</p>
       </div>
 
+      <CausalGraphLegend />
+
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
-        <div className="h-[650px] overflow-hidden rounded-xl border border-slate-800 bg-slate-900">
+        <div className="h-[760px] overflow-hidden rounded-xl border border-slate-800 bg-slate-900">
           <ReactFlow
             nodes={nodes}
             edges={edges}
@@ -239,21 +288,73 @@ export function CausalTreeGraph({ tree }: Props) {
             fitViewOptions={{ padding: 0.25 }}
             minZoom={0.2}
             maxZoom={1.5}
-            onNodeClick={(_, node) => setSelectedNodeId(node.id)}
+            onNodeClick={(_, node) => {
+              setSelectedNodeId(node.id);
+              setSelectedEdgeId(null);
+            }}
+            onEdgeClick={(_, edge) => {
+              setSelectedEdgeId(edge.id);
+            }}
           >
-            <Background color="#334155" gap={20} />
-            <Controls />
-            <MiniMap
-              pannable
-              zoomable
-              nodeColor={(node) =>
-                node.id === tree.root_event_id ? "#2563eb" : "#475569"
-              }
-            />
           </ReactFlow>
         </div>
 
         <aside className="rounded-xl border border-slate-800 bg-slate-900 p-4">
+          {selectedEdge && (
+            <div className="mb-5 rounded-lg border border-purple-800 bg-purple-950 p-4">
+              <p className="text-xs font-medium uppercase tracking-wide text-purple-200">
+                Selected causal link
+              </p>
+
+              <h4 className="mt-2 text-sm font-semibold text-purple-50">
+                {nodeById.get(selectedEdge.from)?.label ?? selectedEdge.from}
+                {" → "}
+                {nodeById.get(selectedEdge.to)?.label ?? selectedEdge.to}
+              </h4>
+
+              <p className="mt-3 text-sm text-purple-100">
+                {selectedEdge.relationship}
+              </p>
+
+              <div className="mt-3 flex flex-wrap gap-2">
+                <span className="rounded bg-slate-950 px-2 py-1 text-xs text-slate-100">
+                  {supportLabelText(selectedEdge.support_label)}
+                </span>
+
+                <span className="rounded bg-slate-950 px-2 py-1 text-xs text-slate-100">
+                  Article support score: {Math.round(selectedEdge.support_score * 100)}%
+                </span>
+
+                <span className="rounded bg-slate-950 px-2 py-1 text-xs text-slate-100">
+                  {selectedEdge.evidence_status.replaceAll("_", " ")}
+                </span>
+              </div>
+
+              <div className="mt-4">
+                <h5 className="text-sm font-semibold text-purple-100">
+                  Why this score?
+                </h5>
+                <p className="mt-1 text-sm text-purple-100">
+                  {selectedEdge.rationale}
+                </p>
+              </div>
+
+              {selectedEdge.reporting_questions.length > 0 && (
+                <div className="mt-4">
+                  <h5 className="text-sm font-semibold text-purple-100">
+                    Reporting questions
+                  </h5>
+
+                  <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-purple-100">
+                    {selectedEdge.reporting_questions.map((question, index) => (
+                      <li key={index}>{question}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          )}
+
           {selectedNode ? (
             <>
               <p className="text-xs font-medium uppercase tracking-wide text-slate-400">
@@ -320,6 +421,23 @@ export function CausalTreeGraph({ tree }: Props) {
                           <p className="mt-1 text-xs text-slate-400">
                             {edge.rationale}
                           </p>
+                          <p className="mt-1 text-xs text-slate-400">
+                            Evidence status: {edge.evidence_status.replaceAll("_", " ")}
+                          </p>
+
+                          {edge.reporting_questions.length > 0 && (
+                            <div className="mt-2 rounded bg-slate-900 p-2">
+                              <p className="text-xs font-semibold text-slate-300">
+                                Reporting questions
+                              </p>
+
+                              <ul className="mt-1 list-disc space-y-1 pl-4 text-xs text-slate-400">
+                                {edge.reporting_questions.map((question, index) => (
+                                  <li key={index}>{question}</li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
                         </div>
                       );
                     })}

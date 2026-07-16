@@ -1,33 +1,76 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import schemaCardsRaw from "@/data/schemaCards.json";
-import type { ArticleRecord, SchemaCard } from "@/lib/schema";
-import { findAnalogies } from "@/lib/analogySearch";
-import { CausalTreeGraph } from "@/components/CausalTreeGraph";
-import type { CausalTree } from "@/lib/schema";
+import { useState } from "react";
 
-const schemaCards = schemaCardsRaw as ArticleRecord[];
+import sampleArticlesRaw from "@/data/examples/sampleArticles.json";
+import { CausalFramingPanel } from "@/components/CausalFramingPanel";
+import { CausalTreeGraph } from "@/components/CausalTreeGraph";
+import { ExportJsonButton } from "@/components/ExportJsonButton";
+import type { CausalTree, SchemaCard } from "@/lib/schema";
+
+type ExampleArticle = {
+  id: string;
+  title: string;
+  date?: string;
+  category?: string;
+  url?: string;
+  text: string;
+};
+
+const sampleArticles = sampleArticlesRaw as ExampleArticle[];
+
+async function readJsonResponse(response: Response) {
+  const text = await response.text();
+
+  try {
+    return JSON.parse(text);
+  } catch {
+    throw new Error(
+      `Server returned non-JSON response. Status: ${response.status}. Preview: ${text.slice(
+        0,
+        200
+      )}`
+    );
+  }
+}
+
+function makeDownloadFilename(title: string) {
+  const base = title || "article";
+
+  return `${base}-causal-tree.json`
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
+}
 
 export default function Home() {
-  const [selectedId, setSelectedId] = useState(schemaCards[0]?.id ?? "");
-  const [preferCrossTopic, setPreferCrossTopic] = useState(true);
+  const [selectedExampleId, setSelectedExampleId] = useState("");
   const [title, setTitle] = useState("");
   const [articleText, setArticleText] = useState("");
+
   const [generatedSchema, setGeneratedSchema] = useState<SchemaCard | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [schemaLoading, setSchemaLoading] = useState(false);
+
   const [causalTree, setCausalTree] = useState<CausalTree | null>(null);
   const [causalLoading, setCausalLoading] = useState(false);
 
-  const selectedArticle = schemaCards.find((record) => record.id === selectedId);
+  function loadExample(exampleId: string) {
+    setSelectedExampleId(exampleId);
 
-  const analogies = useMemo(() => {
-    if (!selectedId) return [];
-    return findAnalogies(schemaCards, selectedId, 5, preferCrossTopic);
-  }, [selectedId, preferCrossTopic]);
+    const example = sampleArticles.find((article) => article.id === exampleId);
+
+    if (!example) {
+      return;
+    }
+
+    setTitle(example.title);
+    setArticleText(example.text);
+    setGeneratedSchema(null);
+    setCausalTree(null);
+  }
 
   async function extractSchema() {
-    setLoading(true);
+    setSchemaLoading(true);
     setGeneratedSchema(null);
 
     try {
@@ -42,7 +85,7 @@ export default function Home() {
         }),
       });
 
-      const data = await response.json();
+      const data = await readJsonResponse(response);
 
       if (!response.ok) {
         throw new Error(data.error ?? "Schema extraction failed.");
@@ -52,7 +95,7 @@ export default function Home() {
     } catch (error) {
       alert(error instanceof Error ? error.message : "Unknown error.");
     } finally {
-      setLoading(false);
+      setSchemaLoading(false);
     }
   }
 
@@ -72,7 +115,7 @@ export default function Home() {
         }),
       });
 
-      const data = await response.json();
+      const data = await readJsonResponse(response);
 
       if (!response.ok) {
         throw new Error(data.error ?? "Causal tree extraction failed.");
@@ -90,130 +133,123 @@ export default function Home() {
     <main className="min-h-screen bg-slate-950 text-slate-100">
       <div className="mx-auto max-w-6xl px-6 py-10">
         <header className="mb-8">
-          <h1 className="text-3xl font-bold">Wikinews Structural Explorer</h1>
-          <p className="mt-2 text-slate-300">
-            Extract narrative schemas from news stories and find structurally similar articles.
+          <p className="text-sm font-medium uppercase tracking-wide text-purple-300">
+            Journalism + AI research prototype
+          </p>
+
+          <h1 className="mt-2 text-3xl font-bold">
+            CausalLens
+          </h1>
+
+          <p className="mt-2 max-w-3xl text-slate-300">
+            Extract causal trees from news articles, inspect how strongly the
+            article supports each causal link, and surface reporting gaps for
+            further investigation.
           </p>
         </header>
 
-        <section className="mb-10 rounded-xl border border-slate-800 bg-slate-900 p-5">
-          <h2 className="mb-4 text-xl font-semibold">Explore existing schema cards</h2>
-
-          <label className="block text-sm font-medium text-slate-300">
-            Choose article
-          </label>
-
-          <select
-            className="mt-2 w-full rounded-lg border border-slate-700 bg-slate-950 p-3 text-slate-100"
-            value={selectedId}
-            onChange={(event) => setSelectedId(event.target.value)}
-          >
-            {schemaCards.map((record) => (
-              <option key={record.id} value={record.id}>
-                {record.id} — {record.title}
-              </option>
-            ))}
-          </select>
-
-          <label className="mt-4 flex items-center gap-2 text-sm text-slate-300">
-            <input
-              type="checkbox"
-              checked={preferCrossTopic}
-              onChange={(event) => setPreferCrossTopic(event.target.checked)}
-            />
-            Prefer cross-topic analogies
-          </label>
-
-          {selectedArticle && (
-            <div className="mt-6 grid gap-5 md:grid-cols-2">
-              <div className="rounded-lg border border-slate-800 bg-slate-950 p-4">
-                <h3 className="font-semibold">Schema card</h3>
-                <p className="mt-3 text-sm text-slate-400">Topic</p>
-                <p>{selectedArticle.schema.topic}</p>
-
-                <p className="mt-3 text-sm text-slate-400">Story type</p>
-                <p>{selectedArticle.schema.story_type}</p>
-
-                <p className="mt-3 text-sm text-slate-400">Central conflict</p>
-                <p>{selectedArticle.schema.central_conflict}</p>
-
-                <p className="mt-3 text-sm text-slate-400">Narrative schema</p>
-                <p>{selectedArticle.schema.narrative_schema}</p>
-
-                <p className="mt-3 text-sm text-slate-400">Analogy signature</p>
-                <p className="rounded bg-slate-900 p-2 font-mono text-sm">
-                  {selectedArticle.schema.analogy_signature}
-                </p>
-              </div>
-
-              <div className="rounded-lg border border-slate-800 bg-slate-950 p-4">
-                <h3 className="font-semibold">Structural analogies</h3>
-
-                <div className="mt-3 space-y-3">
-                  {analogies.map((item) => (
-                    <div key={item.id} className="rounded-lg bg-slate-900 p-3">
-                      <p className="font-medium">{item.title}</p>
-                      <p className="text-sm text-slate-400">
-                        Topic: {item.topic} · Score: {item.score.toFixed(3)}
-                      </p>
-                      <p className="mt-2 text-sm">{item.narrative_schema}</p>
-                      <p className="mt-2 rounded bg-slate-950 p-2 font-mono text-xs text-slate-300">
-                        {item.analogy_signature}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          )}
-        </section>
-
         <section className="rounded-xl border border-slate-800 bg-slate-900 p-5">
-          <h2 className="mb-4 text-xl font-semibold">Extract a schema from a new article</h2>
+          <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+            <div className="flex-1">
+              <label className="block text-sm font-medium text-slate-300">
+                Load example article
+              </label>
 
-          <input
-            className="w-full rounded-lg border border-slate-700 bg-slate-950 p-3 text-slate-100"
-            placeholder="Article title"
-            value={title}
-            onChange={(event) => setTitle(event.target.value)}
-          />
+              <select
+                className="mt-2 w-full rounded-lg border border-slate-700 bg-slate-950 p-3 text-slate-100"
+                value={selectedExampleId}
+                onChange={(event) => loadExample(event.target.value)}
+              >
+                <option value="">Choose an example...</option>
 
-          <textarea
-            className="mt-3 h-48 w-full rounded-lg border border-slate-700 bg-slate-950 p-3 text-slate-100"
-            placeholder="Paste article text here"
-            value={articleText}
-            onChange={(event) => setArticleText(event.target.value)}
-          />
+                {sampleArticles.map((article) => (
+                  <option key={article.id} value={article.id}>
+                    {article.title}
+                    {article.category ? ` — ${article.category}` : ""}
+                  </option>
+                ))}
+              </select>
+            </div>
 
-          <div className="mt-3 flex flex-wrap gap-3">
-            <button
-              className="rounded-lg bg-blue-500 px-4 py-2 font-medium text-white disabled:opacity-50"
-              onClick={extractSchema}
-              disabled={loading}
-            >
-              {loading ? "Extracting schema..." : "Extract schema"}
-            </button>
+            <div className="text-sm text-slate-400">
+              Or paste your own article below.
+            </div>
+          </div>
 
+          <div className="mt-5">
+            <label className="block text-sm font-medium text-slate-300">
+              Article title
+            </label>
+
+            <input
+              className="mt-2 w-full rounded-lg border border-slate-700 bg-slate-950 p-3 text-slate-100"
+              placeholder="Article title"
+              value={title}
+              onChange={(event) => setTitle(event.target.value)}
+            />
+          </div>
+
+          <div className="mt-4">
+            <label className="block text-sm font-medium text-slate-300">
+              Article text
+            </label>
+
+            <textarea
+              className="mt-2 h-64 w-full rounded-lg border border-slate-700 bg-slate-950 p-3 text-slate-100"
+              placeholder="Paste article text here"
+              value={articleText}
+              onChange={(event) => setArticleText(event.target.value)}
+            />
+          </div>
+
+          <div className="mt-4 flex flex-wrap gap-3">
             <button
               className="rounded-lg bg-purple-500 px-4 py-2 font-medium text-white disabled:opacity-50"
               onClick={extractCausalTree}
-              disabled={causalLoading}
+              disabled={causalLoading || !title.trim() || !articleText.trim()}
             >
               {causalLoading ? "Extracting causal tree..." : "Extract causal tree"}
             </button>
+
+            <button
+              className="rounded-lg border border-slate-700 bg-slate-950 px-4 py-2 font-medium text-slate-100 disabled:opacity-50"
+              onClick={extractSchema}
+              disabled={schemaLoading || !title.trim() || !articleText.trim()}
+            >
+              {schemaLoading ? "Extracting schema..." : "Extract basic schema"}
+            </button>
           </div>
-
-          {generatedSchema && (
-            <div className="mt-5 rounded-lg border border-slate-800 bg-slate-950 p-4">
-              <h3 className="font-semibold">Generated schema</h3>
-              <pre className="mt-3 overflow-x-auto text-sm">
-                {JSON.stringify(generatedSchema, null, 2)}
-              </pre>
-            </div>
-          )}
-
-          {causalTree && <CausalTreeGraph tree={causalTree} />}
         </section>
+
+        {generatedSchema && (
+          <section className="mt-6 rounded-xl border border-slate-800 bg-slate-900 p-5">
+            <h2 className="text-xl font-semibold">Basic schema</h2>
+
+            <p className="mt-2 text-sm text-slate-400">
+              This is the older schema extraction output. It is still useful for
+              debugging and comparison, but causal analysis is now the main tool.
+            </p>
+
+            <pre className="mt-4 overflow-x-auto rounded-lg bg-slate-950 p-4 text-sm text-slate-300">
+              {JSON.stringify(generatedSchema, null, 2)}
+            </pre>
+          </section>
+        )}
+
+        {causalTree && (
+          <>
+            <CausalFramingPanel tree={causalTree} />
+
+            <div className="mt-4">
+              <ExportJsonButton
+                data={causalTree}
+                filename={makeDownloadFilename(title)}
+              />
+            </div>
+
+            <CausalTreeGraph tree={causalTree} />
+          </>
+        )}
       </div>
     </main>
   );

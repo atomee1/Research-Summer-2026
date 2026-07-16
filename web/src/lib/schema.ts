@@ -28,9 +28,10 @@ export type ArticleRecord = {
 
 export const EvidenceStatusSchema = z.enum([
   "explicitly_reported",
+  "attributed_to_source",
   "strongly_implied",
   "weakly_implied",
-  "disputed_or_attributed",
+  "disputed_or_contested",
   "background_context",
   "unsupported_hypothesis",
 ]);
@@ -59,22 +60,68 @@ export const CausalEdgeSchema = z.object({
   from: z.string().describe("The id of the cause node."),
   to: z.string().describe("The id of the effect/event node."),
   relationship: z.string().describe("Plain-English causal relationship."),
+
+  evidence_status: EvidenceStatusSchema.describe(
+    "How the article supports this causal link."
+  ),
+
   support_score: z.number().min(0).max(1).describe(
     "How strongly the article supports this causal link, from 0 to 1. This is not real-world probability."
   ),
+
   support_label: z.enum(["high", "medium", "low", "speculative"]),
-  rationale: z.string().describe("Why this link received this support score."),
+
+  rationale: z.string().describe(
+    "Why this causal link received this evidence status and support score."
+  ),
+
+  reporting_questions: z.array(z.string()).describe(
+    "Concrete questions a journalist should ask to verify or challenge this causal link."
+  ),
 });
+
+export const CausalFramingSchema = z.object({
+  dominant_explanation: z.string().describe(
+    "The main causal explanation foregrounded by the article."
+  ),
+
+  foregrounded_causes: z.array(z.string()).describe(
+    "Causes the article emphasizes or directly supports."
+  ),
+
+  backgrounded_causes: z.array(z.string()).describe(
+    "Causes mentioned or implied but not deeply investigated."
+  ),
+
+  alternative_explanations: z.array(z.string()).describe(
+    "Other possible explanations the article gestures toward or leaves open."
+  ),
+
+  possible_blind_spots: z.array(z.string()).describe(
+    "Causal explanations or accountability angles that may be missing from the reporting."
+  ),
+
+  causal_signature: z.string().describe(
+    "A compact structural description useful for comparing this article to causally similar stories."
+  ),
+});
+
+
 
 export const CausalTreeSchema = z.object({
   title: z.string(),
   root_event_id: z.string().describe("The id of the central event being explained."),
   summary: z.string().describe("Short summary of the causal tree."),
+
+  causal_framing: CausalFramingSchema,
+
   nodes: z.array(CausalNodeSchema),
   edges: z.array(CausalEdgeSchema),
+
   reporting_gaps: z.array(z.string()).describe(
     "Questions a journalist would need to answer to verify or improve the causal account."
   ),
+
   uncertainty_notes: z.array(z.string()).describe(
     "Important caveats about what the article does not establish."
   ),
@@ -84,4 +131,5 @@ export type EvidenceStatus = z.infer<typeof EvidenceStatusSchema>;
 export type CausalNodeType = z.infer<typeof CausalNodeTypeSchema>;
 export type CausalNode = z.infer<typeof CausalNodeSchema>;
 export type CausalEdge = z.infer<typeof CausalEdgeSchema>;
+export type CausalFraming = z.infer<typeof CausalFramingSchema>;
 export type CausalTree = z.infer<typeof CausalTreeSchema>;
