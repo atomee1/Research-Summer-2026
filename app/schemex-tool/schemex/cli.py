@@ -115,8 +115,10 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv=None) -> int:
+    print("MAIN STARTED", flush=True)
     parser = build_parser()
     args = parser.parse_args(argv)
+    print(f"COMMAND: {args.command}", flush=True)
 
     if args.command == "run":
         try:
@@ -166,4 +168,54 @@ def main(argv=None) -> int:
             print(f"Error: draft path not found: {args.draft}", file=sys.stderr)
             return 1
 
-        # NOTE: verify
+        try:
+            state = RunState.load(args.state)
+        except (OSError, ValueError) as exc:
+            print(f"Error loading state: {exc}", file=sys.stderr)
+            return 1
+
+        draft_path_obj = Path(args.draft)
+
+        if draft_path_obj.is_dir():
+            draft_files = sorted(draft_path_obj.glob("*.txt"))
+            if not draft_files:
+                print(f"Error: no .txt files found in {args.draft}", file=sys.stderr)
+                return 1
+        else:
+            draft_files = [draft_path_obj]
+
+        output_dir = args.output or args.state
+
+        for draft_file in draft_files:
+            with open(draft_file, "r", encoding="utf-8") as f:
+                draft_text = f.read()
+
+            if not draft_text.strip():
+                print(f"Error: draft file is empty: {draft_file}", file=sys.stderr)
+                continue
+
+            if args.cluster:
+                cluster = next(
+                    (c for c in state.clusters if c.id == args.cluster), None
+                )
+                if cluster is None:
+                    print(f"Error: cluster '{args.cluster}' not found in state.", file=sys.stderr)
+                    continue
+            else:
+                cluster = pick_best_cluster(client, draft_text, state.clusters)
+                print(f"[coverage] {draft_file.name}: auto-matched to cluster '{cluster.name}'")
+
+            schema = state.schemas[cluster.id]
+
+            report = run_coverage_check(client, str(draft_file), draft_text, schema, cluster)
+            md_path = write_coverage_report(report, output_dir)
+            print(f"  -> {md_path}")
+
+        return 0
+
+    parser.print_help()
+    return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())
