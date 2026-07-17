@@ -12,6 +12,7 @@ from __future__ import annotations
 import argparse
 import os
 import sys
+from pathlib import Path
 
 from .io_utils import RunState, load_examples, write_coverage_report
 from .llm import DEFAULT_MAX_TOKENS, DEFAULT_MODEL, ClaudeClient, LLMError
@@ -75,7 +76,8 @@ def build_parser() -> argparse.ArgumentParser:
     )
     check.add_argument(
         "--draft", "-d", required=True,
-        help="Path to a plain-text draft article to check.",
+        help="Path to a plain-text draft article to check, or a directory "
+             "of .txt drafts to check in batch.",
     )
     check.add_argument(
         "--state", "-s", required=True,
@@ -149,24 +151,6 @@ def main(argv=None) -> int:
         return 0
 
     if args.command == "check":
-        if not os.path.exists(args.draft):
-            print(f"Error: draft file not found: {args.draft}", file=sys.stderr)
-            return 1
-        with open(args.draft, "r", encoding="utf-8") as f:
-            draft_text = f.read()
-        if not draft_text.strip():
-            print("Error: draft file is empty.", file=sys.stderr)
-            return 1
-
-        state = RunState.load(args.state)
-        if not state.clusters or not state.schemas:
-            print(
-                f"Error: no clusters/schemas found in {args.state}. "
-                f"Run `schemex run` first to produce a state.json there.",
-                file=sys.stderr,
-            )
-            return 1
-
         try:
             client = ClaudeClient(
                 model=args.model,
@@ -178,34 +162,8 @@ def main(argv=None) -> int:
             print(f"Error: {exc}", file=sys.stderr)
             return 1
 
-        if args.cluster:
-            cluster = next((c for c in state.clusters if c.id == args.cluster), None)
-            if cluster is None:
-                print(f"Error: no cluster with id '{args.cluster}' in {args.state}. "
-                      f"Available ids: {', '.join(c.id for c in state.clusters)}",
-                      file=sys.stderr)
-                return 1
-        else:
-            cluster = pick_best_cluster(client, draft_text, state.clusters)
-            print(f"[coverage] auto-matched draft to cluster '{cluster.name}' "
-                  f"({cluster.id})")
-
-        schema = state.schemas.get(cluster.id)
-        if schema is None:
-            print(f"Error: cluster '{cluster.id}' has no schema in {args.state}.",
-                  file=sys.stderr)
+        if not os.path.exists(args.draft):
+            print(f"Error: draft path not found: {args.draft}", file=sys.stderr)
             return 1
 
-        report = run_coverage_check(client, args.draft, draft_text, schema, cluster)
-
-        output_dir = args.output or args.state
-        md_path = write_coverage_report(report, output_dir)
-        print(f"\nCoverage report written to {md_path}")
-        return 0
-
-    parser.print_help()
-    return 1
-
-
-if __name__ == "__main__":
-    sys.exit(main())
+        # NOTE: verify
