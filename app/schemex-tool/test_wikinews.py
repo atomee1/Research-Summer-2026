@@ -8,6 +8,7 @@ params = {
     "format": "json"
 }
 
-response = requests.get(url, params=params)
+response = requests.get(url, params=params, headers={"User-Agent": "SchemexTool/0.1"})
 print("STATUS:", response.status_code)
-print(response.json())
+print("RAW TEXT (first 500 chars):")
+print(response.text[:500])
