@@ -19,9 +19,10 @@ from .io_utils import (
     load_examples,
     write_coverage_html,
     write_coverage_report,
+    write_critique_report,
 )
 from .llm import DEFAULT_MAX_TOKENS, DEFAULT_MODEL, ClaudeClient, LLMError
-from .pipeline import pick_best_cluster, run_coverage_check, run_pipeline
+from .pipeline import pick_best_cluster, run_coverage_check, run_critique, run_fixer, run_pipeline
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -114,6 +115,26 @@ def build_parser() -> argparse.ArgumentParser:
         "--verbose", action="store_true",
         help="Print full prompts and responses for every model call.",
     )
+
+    critique = sub.add_parser(
+        "critique",
+        help="Run the critic bot on a draft for deep editorial feedback, "
+             "then optionally run the fixer bot to produce a rewritten draft.",
+    )
+    critique.add_argument("--draft", "-d", required=True,
+        help="Path to the draft text file to critique.")
+    critique.add_argument("--state", "-s", required=True,
+        help="Path to schemex output directory containing state.json.")
+    critique.add_argument("--cluster", default=None,
+        help="Cluster id to check against (auto-detected if omitted).")
+    critique.add_argument("--fix", action="store_true",
+        help="After critiquing, run the fixer bot to produce a rewritten draft.")
+    critique.add_argument("--output", "-o", default=None,
+        help="Directory to write reports into (default: --state directory).")
+    critique.add_argument("--model", default=DEFAULT_MODEL)
+    critique.add_argument("--max-tokens", type=int, default=DEFAULT_MAX_TOKENS)
+    critique.add_argument("--api-key", default=None)
+    critique.add_argument("--verbose", action="store_true")
 
     return parser
 
@@ -218,6 +239,61 @@ def main(argv=None) -> int:
             print(f"Graph updated    -> {graph_path}  (node colours now reflect coverage)")
         else:
             print("Note: graph.html not found in output dir — run `schemex run` first to generate it.")
+        return 0
+
+    if args.command == "critique":
+        if not os.path.exists(args.draft):
+            print(f"Error: draft file not found: {args.draft}", file=sys.stderr)
+            return 1
+        with open(args.draft, "r", encoding="utf-8") as f:
+            draft_text = f.read()
+        if not draft_text.strip():
+            print("Error: draft file is empty.", file=sys.stderr)
+            return 1
+
+        state = RunState.load(args.state)
+        if not state.clusters or not state.schemas:
+            print(f"Error: run `schemex run` first.", file=sys.stderr)
+            return 1
+
+        try:
+            client = ClaudeClient(
+                model=args.model,
+                max_tokens=args.max_tokens,
+                api_key=args.api_key,
+                verbose=args.verbose,
+            )
+        except LLMError as exc:
+            print(f"Error: {exc}", file=sys.stderr)
+            return 1
+
+        if args.cluster:
+            cluster = next((c for c in state.clusters if c.id == args.cluster), None)
+            if cluster is None:
+                print(f"Error: cluster '{args.cluster}' not found.", file=sys.stderr)
+                return 1
+        else:
+            cluster = pick_best_cluster(client, draft_text, state.clusters)
+            print(f"[critique] auto-matched to cluster '{cluster.name}'")
+
+        schema = state.schemas.get(cluster.id)
+        if schema is None:
+            print(f"Error: no schema for cluster '{cluster.id}'.", file=sys.stderr)
+            return 1
+
+        critique = run_critique(client, args.draft, draft_text, schema, cluster)
+
+        if args.fix:
+            fixed = run_fixer(client, draft_text, critique)
+            critique.fixed_draft = fixed
+
+        output_dir = args.output or args.state
+        md_path, html_path = write_critique_report(critique, output_dir)
+
+        print(f"\nCritique report  -> {md_path}")
+        print(f"Visual report    -> {html_path}")
+        if critique.fixed_draft:
+            print(f"Fixed draft included in both reports.")
         return 0
 
     parser.print_help()

@@ -241,3 +241,149 @@ def build_coverage_prompt(schema: Schema, draft_text: str, cluster_name: str) ->
         schema_block=schema.as_prompt_block(),
         draft_text=draft_text.strip(),
     )
+
+
+# ---------------------------------------------------------------------------
+# Critic bot prompts
+# ---------------------------------------------------------------------------
+
+CRITIC_SYSTEM = """You are a ruthlessly honest senior editor at a major \
+newspaper with 20 years of experience. Your job is to give a journalist \
+the hardest, most useful critique of their draft before it goes to \
+print. You do not soften feedback. You identify exactly what is wrong, \
+why it is wrong, and what category of problem it is. You critique at \
+three levels: (1) structural — does the story follow the right arc for \
+its type, are components in the right order, is anything missing; \
+(2) argumentative — are the causal claims supported, are there logical \
+gaps, are claims asserted without evidence; (3) prose — is the lede \
+buried, are there weak verbs, unnecessary hedging, or passive voice that \
+kills urgency. Be specific: quote the exact phrase or sentence that is \
+the problem. Do not invent problems that are not there. If something \
+is genuinely strong, say so briefly and move on."""
+
+CRITIC_USER_TEMPLATE = """SCHEMA (cluster: "{cluster_name}") — this is \
+the structural pattern this draft should follow:
+{schema_block}
+
+DRAFT:
+---
+{draft_text}
+---
+
+Give a complete editorial critique covering:
+1. Structural problems (missing or misordered schema components)
+2. Argumentative problems (unsupported claims, logical gaps, missing evidence)
+3. Prose problems (buried lede, weak verbs, hedging, passive voice, unclear antecedents)
+
+Return a JSON object shaped like:
+{{
+  "verdict": "one punchy sentence summarising the draft's biggest problem",
+  "score": {{
+    "structure": 1-10,
+    "argument": 1-10,
+    "prose": 1-10
+  }},
+  "structural_issues": [
+    {{
+      "issue": "short label",
+      "detail": "specific description citing exact component or location in draft",
+      "severity": "critical" | "major" | "minor"
+    }}
+  ],
+  "argumentative_issues": [
+    {{
+      "issue": "short label",
+      "claim": "the exact phrase or sentence making the unsupported claim",
+      "detail": "why it is unsupported and what evidence is needed",
+      "severity": "critical" | "major" | "minor"
+    }}
+  ],
+  "prose_issues": [
+    {{
+      "issue": "short label",
+      "quote": "the exact phrase or sentence with the problem",
+      "detail": "what is wrong and why it weakens the piece",
+      "severity": "critical" | "major" | "minor"
+    }}
+  ],
+  "strengths": ["one sentence per genuine strength, max 3"]
+}}"""
+
+
+# ---------------------------------------------------------------------------
+# Fixer bot prompts
+# ---------------------------------------------------------------------------
+
+FIXER_SYSTEM = """You are a skilled rewrite editor. You have received a \
+journalist's draft and a detailed editorial critique of it. Your job is \
+to rewrite the draft to fix every identified problem while preserving the \
+journalist's voice, all confirmed facts, and all direct quotes. You do \
+not add fabricated facts. Where new reporting is needed that you cannot \
+supply, insert a [NEEDS REPORTING: description] tag so the journalist \
+knows exactly what to gather. Rewrite aggressively — do not just tweak \
+words, fix the actual structural, argumentative, and prose problems \
+identified. Return the complete rewritten draft, not a summary of \
+changes."""
+
+FIXER_USER_TEMPLATE = """ORIGINAL DRAFT:
+---
+{draft_text}
+---
+
+EDITORIAL CRITIQUE:
+---
+Verdict: {verdict}
+
+Structural issues:
+{structural_block}
+
+Argumentative issues:
+{argumentative_block}
+
+Prose issues:
+{prose_block}
+---
+
+Rewrite the full draft fixing every issue above. Preserve all confirmed \
+facts, named sources, and direct quotes. Use [NEEDS REPORTING: \
+description] where new information is required. Return only the rewritten \
+draft text, no commentary."""
+
+
+def build_critic_prompt(schema: "Schema", draft_text: str, cluster_name: str) -> str:
+    return CRITIC_USER_TEMPLATE.format(
+        cluster_name=cluster_name,
+        schema_block=schema.as_prompt_block(),
+        draft_text=draft_text.strip(),
+    )
+
+
+def build_fixer_prompt(
+    draft_text: str,
+    verdict: str,
+    structural_issues: list,
+    argumentative_issues: list,
+    prose_issues: list,
+) -> str:
+    def fmt_issues(issues: list) -> str:
+        if not issues:
+            return "  None identified."
+        lines = []
+        for item in issues:
+            sev = item.get("severity", "")
+            label = item.get("issue", "")
+            detail = item.get("detail", "")
+            quote = item.get("quote") or item.get("claim", "")
+            if quote:
+                lines.append(f"  [{sev.upper()}] {label}: \"{quote}\" — {detail}")
+            else:
+                lines.append(f"  [{sev.upper()}] {label}: {detail}")
+        return "\n".join(lines)
+
+    return FIXER_USER_TEMPLATE.format(
+        draft_text=draft_text.strip(),
+        verdict=verdict,
+        structural_block=fmt_issues(structural_issues),
+        argumentative_block=fmt_issues(argumentative_issues),
+        prose_block=fmt_issues(prose_issues),
+    )

@@ -202,3 +202,80 @@ class RefinementRound:
             "schema_before": self.schema_before.to_dict(),
             "schema_after": self.schema_after.to_dict(),
         }
+
+
+@dataclass
+class CritiqueIssue:
+    """One identified problem from the critic bot."""
+
+    issue: str
+    detail: str
+    severity: str  # "critical" | "major" | "minor"
+    quote: str = ""   # prose/argument issues: the offending phrase
+    claim: str = ""   # argumentative issues: the unsupported claim
+
+    def to_dict(self) -> Dict[str, Any]:
+        return asdict(self)
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "CritiqueIssue":
+        return cls(
+            issue=d.get("issue", ""),
+            detail=d.get("detail", ""),
+            severity=d.get("severity", "minor"),
+            quote=d.get("quote", ""),
+            claim=d.get("claim", ""),
+        )
+
+
+@dataclass
+class CritiqueReport:
+    """Full output of the critic bot for one draft."""
+
+    draft_path: str
+    cluster_name: str
+    verdict: str
+    score: Dict[str, int]  # {structure, argument, prose} each 1-10
+    structural_issues: List[CritiqueIssue]
+    argumentative_issues: List[CritiqueIssue]
+    prose_issues: List[CritiqueIssue]
+    strengths: List[str]
+    fixed_draft: str = ""  # populated by fixer bot if --fix is used
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "draft_path": self.draft_path,
+            "cluster_name": self.cluster_name,
+            "verdict": self.verdict,
+            "score": self.score,
+            "structural_issues": [i.to_dict() for i in self.structural_issues],
+            "argumentative_issues": [i.to_dict() for i in self.argumentative_issues],
+            "prose_issues": [i.to_dict() for i in self.prose_issues],
+            "strengths": self.strengths,
+            "fixed_draft": self.fixed_draft,
+        }
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "CritiqueReport":
+        return cls(
+            draft_path=d.get("draft_path", ""),
+            cluster_name=d.get("cluster_name", ""),
+            verdict=d.get("verdict", ""),
+            score=d.get("score", {}),
+            structural_issues=[CritiqueIssue.from_dict(i) for i in d.get("structural_issues", [])],
+            argumentative_issues=[CritiqueIssue.from_dict(i) for i in d.get("argumentative_issues", [])],
+            prose_issues=[CritiqueIssue.from_dict(i) for i in d.get("prose_issues", [])],
+            strengths=d.get("strengths", []),
+            fixed_draft=d.get("fixed_draft", ""),
+        )
+
+    def total_issues(self) -> int:
+        return (len(self.structural_issues)
+                + len(self.argumentative_issues)
+                + len(self.prose_issues))
+
+    def critical_count(self) -> int:
+        all_issues = (self.structural_issues
+                      + self.argumentative_issues
+                      + self.prose_issues)
+        return sum(1 for i in all_issues if i.severity == "critical")

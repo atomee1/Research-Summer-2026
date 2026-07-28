@@ -415,3 +415,83 @@ def run_pipeline(
     print(f"Graph written to  {graph_path}")
     print(f"Full state written to {output_dir}/state.json")
     return state
+
+
+# ---------------------------------------------------------------------------
+# Stage 5: Critic bot
+# ---------------------------------------------------------------------------
+
+def run_critique(
+    client: ClaudeClient,
+    draft_path: str,
+    draft_text: str,
+    schema: Schema,
+    cluster: Cluster,
+) -> "CritiqueReport":
+    """Run the critic bot: holistic editorial critique of a draft covering
+    structure, argument, and prose."""
+    from .models import CritiqueIssue, CritiqueReport
+    from .prompts import CRITIC_SYSTEM, build_critic_prompt
+
+    print(f"[critic] critiquing '{draft_path}' against schema "
+          f"'{cluster.name}' ...")
+
+    prompt = build_critic_prompt(schema, draft_text, cluster.name)
+    raw = client.complete_json(CRITIC_SYSTEM, prompt)
+
+    report = CritiqueReport(
+        draft_path=draft_path,
+        cluster_name=cluster.name,
+        verdict=raw.get("verdict", ""),
+        score=raw.get("score", {"structure": 0, "argument": 0, "prose": 0}),
+        structural_issues=[
+            CritiqueIssue.from_dict(i)
+            for i in raw.get("structural_issues", [])
+        ],
+        argumentative_issues=[
+            CritiqueIssue.from_dict(i)
+            for i in raw.get("argumentative_issues", [])
+        ],
+        prose_issues=[
+            CritiqueIssue.from_dict(i)
+            for i in raw.get("prose_issues", [])
+        ],
+        strengths=raw.get("strengths", []),
+    )
+
+    print(f"  -> verdict: {report.verdict}")
+    print(f"  -> scores: structure={report.score.get('structure')}, "
+          f"argument={report.score.get('argument')}, "
+          f"prose={report.score.get('prose')}")
+    print(f"  -> {report.total_issues()} issues "
+          f"({report.critical_count()} critical)")
+    return report
+
+
+# ---------------------------------------------------------------------------
+# Stage 6: Fixer bot
+# ---------------------------------------------------------------------------
+
+def run_fixer(
+    client: ClaudeClient,
+    draft_text: str,
+    critique: "CritiqueReport",
+) -> str:
+    """Run the fixer bot: rewrite the draft to address all critic issues.
+    Returns the rewritten draft text."""
+    from .prompts import FIXER_SYSTEM, build_fixer_prompt
+
+    print(f"[fixer] rewriting draft to address "
+          f"{critique.total_issues()} issues ...")
+
+    prompt = build_fixer_prompt(
+        draft_text=draft_text,
+        verdict=critique.verdict,
+        structural_issues=[i.to_dict() for i in critique.structural_issues],
+        argumentative_issues=[i.to_dict() for i in critique.argumentative_issues],
+        prose_issues=[i.to_dict() for i in critique.prose_issues],
+    )
+
+    fixed = client.complete(FIXER_SYSTEM, prompt)
+    print(f"  -> rewritten draft: {len(fixed.split())} words")
+    return fixed.strip()

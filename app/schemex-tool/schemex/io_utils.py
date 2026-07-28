@@ -826,3 +826,169 @@ def inject_coverage_into_graph(report: "CoverageReport", graph_html_path: str) -
         f.write(html)
 
     return True
+
+
+# ---------------------------------------------------------------------------
+# Critique report output
+# ---------------------------------------------------------------------------
+
+_SEV_MARK = {"critical": "🔴", "major": "🟡", "minor": "🔵"}
+_SEV_COLOR = {"critical": "#E0584A", "major": "#EF9F27", "minor": "#7F77DD"}
+
+
+def write_critique_report(report: "CritiqueReport", output_dir: str) -> tuple:
+    """Write critic (and optionally fixer) output as JSON, Markdown, and HTML.
+    Returns (md_path, html_path)."""
+    os.makedirs(output_dir, exist_ok=True)
+    base = os.path.splitext(os.path.basename(report.draft_path))[0]
+    json_path = os.path.join(output_dir, f"critique_{base}.json")
+    md_path   = os.path.join(output_dir, f"critique_{base}.md")
+    html_path = os.path.join(output_dir, f"critique_{base}.html")
+
+    # JSON
+    with open(json_path, "w", encoding="utf-8") as f:
+        json.dump(report.to_dict(), f, indent=2)
+
+    # Markdown
+    def fmt_issues_md(issues, label):
+        if not issues:
+            return f"### {label}\nNone identified.\n"
+        lines = [f"### {label}\n"]
+        for item in issues:
+            mark = _SEV_MARK.get(item.severity, "•")
+            q = f"\n  > \"{item.quote or item.claim}\"" if (item.quote or item.claim) else ""
+            lines.append(f"{mark} **{item.issue}** `[{item.severity}]`{q}\n  {item.detail}\n")
+        return "\n".join(lines)
+
+    score = report.score
+    md_lines = [
+        f"# Critique: {os.path.basename(report.draft_path)}\n",
+        f"**Verdict:** {report.verdict}\n",
+        f"**Schema:** {report.cluster_name}\n",
+        f"| Structure | Argument | Prose |",
+        f"|-----------|----------|-------|",
+        f"| {score.get('structure', '?')}/10 | {score.get('argument', '?')}/10 | {score.get('prose', '?')}/10 |\n",
+    ]
+    if report.strengths:
+        md_lines += ["## Strengths\n"] + [f"- {s}" for s in report.strengths] + [""]
+    md_lines.append(fmt_issues_md(report.structural_issues, "Structural issues"))
+    md_lines.append(fmt_issues_md(report.argumentative_issues, "Argumentative issues"))
+    md_lines.append(fmt_issues_md(report.prose_issues, "Prose issues"))
+    if report.fixed_draft:
+        md_lines += ["\n---\n## Fixed draft\n", report.fixed_draft]
+
+    with open(md_path, "w", encoding="utf-8") as f:
+        f.write("\n".join(md_lines))
+
+    # HTML
+    def score_bar(val, color):
+        pct = max(0, min(100, int(val or 0) * 10))
+        return (f'<div style="display:flex;align-items:center;gap:8px">'
+                f'<div style="flex:1;height:6px;background:#2c2c2a;border-radius:3px">'
+                f'<div style="width:{pct}%;height:100%;background:{color};border-radius:3px"></div></div>'
+                f'<span style="font-size:12px;color:#e8e6de;width:28px">{val}/10</span></div>')
+
+    def issue_cards(issues, category):
+        if not issues:
+            return '<div style="font-size:13px;color:#5F5E5A;padding:8px 0">None identified.</div>'
+        cards = []
+        for item in issues:
+            color = _SEV_COLOR.get(item.severity, "#888780")
+            q = item.quote or item.claim
+            quote_html = (f'<div style="margin:8px 0;padding:8px 12px;background:#0f0f10;'
+                          f'border-left:2px solid {color};font-size:12px;color:#888780;'
+                          f'font-style:italic">{_esc(q)}</div>') if q else ""
+            cards.append(
+                f'<div style="border-left:3px solid {color};background:{color}18;'
+                f'border-radius:0 8px 8px 0;padding:12px 14px;margin-bottom:8px">'
+                f'<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">'
+                f'<span style="font-size:10px;font-weight:700;letter-spacing:.04em;'
+                f'text-transform:uppercase;padding:2px 8px;border-radius:20px;'
+                f'background:{color}33;color:{color}">{item.severity}</span>'
+                f'<span style="font-size:13px;font-weight:600;color:#e8e6de">{_esc(item.issue)}</span>'
+                f'</div>{quote_html}'
+                f'<div style="font-size:13px;line-height:1.6;color:#b4b2a9">{_esc(item.detail)}</div>'
+                f'</div>'
+            )
+        return "".join(cards)
+
+    strengths_html = ""
+    if report.strengths:
+        items = "".join(f'<li style="padding:4px 0;font-size:13px;color:#b4b2a9">{_esc(s)}</li>'
+                        for s in report.strengths)
+        strengths_html = (f'<div style="background:#1a1a1c;border:1px solid #2c2c2a;'
+                          f'border-radius:10px;padding:16px 18px;margin-bottom:20px">'
+                          f'<div style="font-size:10px;font-weight:700;letter-spacing:.08em;'
+                          f'text-transform:uppercase;color:#1D9E75;margin-bottom:10px">Strengths</div>'
+                          f'<ul style="list-style:none;padding:0">{items}</ul></div>')
+
+    fixed_html = ""
+    if report.fixed_draft:
+        paras = "".join(
+            f'<p style="margin-bottom:12px;font-size:14px;line-height:1.7;color:#c2c0b6">{_esc(p)}</p>'
+            for p in report.fixed_draft.split("\n\n") if p.strip()
+        )
+        fixed_html = (f'<hr style="border:none;border-top:1px solid #2c2c2a;margin:28px 0">'
+                      f'<div style="font-size:11px;font-weight:700;letter-spacing:.08em;'
+                      f'text-transform:uppercase;color:#7F77DD;margin-bottom:16px">Fixed draft</div>'
+                      f'{paras}')
+
+    html = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Critique — {_esc(os.path.basename(report.draft_path))}</title>
+<style>
+  *,*::before,*::after{{box-sizing:border-box;margin:0;padding:0}}
+  body{{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+        background:#0f0f10;color:#c2c0b6;min-height:100vh;padding:32px 24px 60px}}
+  .wrap{{max-width:760px;margin:0 auto}}
+  h1{{font-size:22px;font-weight:600;color:#e8e6de;margin-bottom:4px}}
+  h2{{font-size:14px;font-weight:600;color:#e8e6de;margin:24px 0 12px;
+      letter-spacing:.02em;text-transform:uppercase;font-size:11px;color:#5F5E5A}}
+  .verdict{{font-size:15px;line-height:1.5;color:#EF9F27;font-style:italic;
+            margin:12px 0 20px;padding:12px 16px;background:#2E200826;
+            border-left:3px solid #EF9F27;border-radius:0 8px 8px 0}}
+  .scores{{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:24px}}
+  .score-card{{background:#1a1a1c;border:1px solid #2c2c2a;border-radius:10px;padding:14px 16px}}
+  .score-label{{font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;
+                color:#888780;margin-bottom:8px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div style="font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;
+              color:#888780;margin-bottom:6px">Schemex critic</div>
+  <h1>{_esc(os.path.basename(report.draft_path))}</h1>
+  <div style="font-size:13px;color:#888780;margin-bottom:16px">Schema: {_esc(report.cluster_name)}</div>
+  <div class="verdict">{_esc(report.verdict)}</div>
+  <div class="scores">
+    <div class="score-card">
+      <div class="score-label">Structure</div>
+      {score_bar(score.get('structure', 0), '#7F77DD')}
+    </div>
+    <div class="score-card">
+      <div class="score-label">Argument</div>
+      {score_bar(score.get('argument', 0), '#EF9F27')}
+    </div>
+    <div class="score-card">
+      <div class="score-label">Prose</div>
+      {score_bar(score.get('prose', 0), '#1D9E75')}
+    </div>
+  </div>
+  {strengths_html}
+  <h2>Structural issues</h2>
+  {issue_cards(report.structural_issues, 'structural')}
+  <h2>Argumentative issues</h2>
+  {issue_cards(report.argumentative_issues, 'argumentative')}
+  <h2>Prose issues</h2>
+  {issue_cards(report.prose_issues, 'prose')}
+  {fixed_html}
+</div>
+</body>
+</html>"""
+
+    with open(html_path, "w", encoding="utf-8") as f:
+        f.write(html)
+
+    return md_path, html_path
