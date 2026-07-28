@@ -1096,28 +1096,52 @@ def inject_critique_into_graph(report: "CritiqueReport", graph_html_path: str) -
 // Critique overlay — injected by `schemex critique`
 // Draft: {draft_name}  |  Schema: {cluster_name}
 (function () {{
-  const COMP_ISSUES   = {comp_issues_json};
-  const SEV_COLOR     = {sev_colors_json};
-  const VERDICT       = {json.dumps(verdict)};
-  const SCORE         = {json.dumps(score)};
-  const DRAFT_NAME    = {json.dumps(draft_name)};
-  const CLUSTER_NAME  = {json.dumps(cluster_name)};
-  const TOTAL_ISSUES  = {total};
-  const CRITICAL      = {critical};
+  const COMP_ISSUES        = {comp_issues_json};
+  const STRUCTURAL_ISSUES  = {json.dumps([i.to_dict() for i in report.structural_issues])};
+  const ARGUMENTATIVE_ISSUES = {json.dumps([i.to_dict() for i in report.argumentative_issues])};
+  const PROSE_ISSUES       = {json.dumps([i.to_dict() for i in report.prose_issues])};
+  const SEV_COLOR          = {sev_colors_json};
+  const VERDICT            = {json.dumps(verdict)};
+  const SCORE              = {json.dumps(score)};
+  const DRAFT_NAME         = {json.dumps(draft_name)};
+  const CLUSTER_NAME       = {json.dumps(cluster_name)};
+  const TOTAL_ISSUES       = {total};
+  const CRITICAL           = {critical};
 
   const SEV_RANK = {{ critical: 3, major: 2, minor: 1, clean: 0 }};
 
+  // Build a flat list of all issues for broad matching
+  const ALL_ISSUES = [
+    ...STRUCTURAL_ISSUES.map(i => Object.assign({{category:"structural"}}, i)),
+    ...ARGUMENTATIVE_ISSUES.map(i => Object.assign({{category:"argumentative"}}, i)),
+    ...PROSE_ISSUES.map(i => Object.assign({{category:"prose"}}, i)),
+  ];
+
   function matchIssues(label) {{
-    const lower = label.toLowerCase();
+    const lower = label.toLowerCase().replace(/[^a-z0-9 ]/g, "");
+    const words = lower.split(" ").filter(w => w.length > 3);
     let worst = "clean";
     const matched = [];
-    for (const [key, data] of Object.entries(COMP_ISSUES)) {{
-      if (lower.includes(key) || key.includes(lower.slice(0, 8))) {{
-        if ((SEV_RANK[data.worst_severity] || 0) > (SEV_RANK[worst] || 0)) {{
-          worst = data.worst_severity;
+    for (const iss of ALL_ISSUES) {{
+      const issText = (iss.issue + " " + iss.detail + " " + (iss.quote||"") + " " + (iss.claim||"")).toLowerCase();
+      // Match if any meaningful word from the component label appears in the issue text
+      const hits = words.filter(w => issText.includes(w));
+      if (hits.length >= 1) {{
+        if ((SEV_RANK[iss.severity] || 0) > (SEV_RANK[worst] || 0)) {{
+          worst = iss.severity;
         }}
-        matched.push(...data.issues);
+        matched.push(iss);
       }}
+    }}
+    // Fallback: if no specific match, assign a colour based on overall scores
+    // so the graph is never all-yellow even when issues don't name components
+    if (matched.length === 0 && ALL_ISSUES.length > 0) {{
+      const avgScore = (
+        (SCORE.structure || 5) + (SCORE.argument || 5) + (SCORE.prose || 5)
+      ) / 3;
+      if (avgScore <= 4)      worst = "major";
+      else if (avgScore <= 6) worst = "minor";
+      else                    worst = "clean";
     }}
     return {{ worst, issues: matched }};
   }}
