@@ -250,10 +250,14 @@ class RunState:
 <title>Schemex — graph visualisation</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/vis/4.21.0/vis.min.js"></script>
 <link  href="https://cdnjs.cloudflare.com/ajax/libs/vis/4.21.0/vis.min.css" rel="stylesheet">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
   *, *::before, *::after {{ box-sizing: border-box; margin: 0; padding: 0; }}
   body {{
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    font-size: 15px;
     background: #0f0f10;
     color: #c2c0b6;
     height: 100vh;
@@ -262,7 +266,7 @@ class RunState:
     overflow: hidden;
   }}
   header {{
-    padding: 12px 20px;
+    padding: 14px 22px;
     border-bottom: 1px solid #2c2c2a;
     display: flex;
     align-items: center;
@@ -271,25 +275,26 @@ class RunState:
     background: #1a1a1c;
   }}
   header h1 {{
-    font-size: 15px;
-    font-weight: 600;
+    font-family: "Playfair Display", Georgia, serif;
+    font-size: 22px;
+    font-weight: 700;
     color: #e8e6de;
     letter-spacing: -0.01em;
   }}
   .stat {{
-    font-size: 12px;
+    font-size: 13px;
     color: #888780;
     background: #2c2c2a;
-    padding: 3px 10px;
+    padding: 4px 12px;
     border-radius: 20px;
   }}
-  .stat span {{ color: #c2c0b6; font-weight: 500; }}
+  .stat span {{ color: #c2c0b6; font-weight: 600; }}
   .legend {{
     display: flex;
     align-items: center;
     gap: 14px;
     margin-left: auto;
-    font-size: 12px;
+    font-size: 13px;
     color: #888780;
   }}
   .dot {{
@@ -326,25 +331,26 @@ class RunState:
     text-align: center;
   }}
   .sidebar-type {{
-    font-size: 10px;
-    font-weight: 600;
+    font-size: 11px;
+    font-weight: 700;
     letter-spacing: 0.08em;
     text-transform: uppercase;
     color: #888780;
     margin-bottom: 6px;
   }}
   .sidebar-name {{
-    font-size: 16px;
-    font-weight: 600;
+    font-family: "Playfair Display", Georgia, serif;
+    font-size: 21px;
+    font-weight: 700;
     color: #e8e6de;
     margin-bottom: 14px;
-    line-height: 1.35;
+    line-height: 1.3;
   }}
   .sidebar-section {{
     margin-bottom: 16px;
   }}
   .sidebar-label {{
-    font-size: 11px;
+    font-size: 12px;
     font-weight: 600;
     color: #5F5E5A;
     text-transform: uppercase;
@@ -352,7 +358,7 @@ class RunState:
     margin-bottom: 6px;
   }}
   .sidebar-body {{
-    font-size: 13px;
+    font-size: 14.5px;
     color: #888780;
     line-height: 1.6;
   }}
@@ -361,40 +367,40 @@ class RunState:
     background: #2c2c2a;
     color: #b4b2a9;
     border-radius: 4px;
-    padding: 2px 7px;
-    font-size: 11px;
+    padding: 3px 8px;
+    font-size: 12px;
     margin: 2px 2px 2px 0;
     font-family: monospace;
   }}
   .attr-item {{
-    padding: 5px 0;
+    padding: 6px 0;
     border-bottom: 1px solid #2c2c2a;
-    font-size: 12px;
+    font-size: 13.5px;
     color: #888780;
-    line-height: 1.5;
+    line-height: 1.55;
   }}
   .attr-item:last-child {{ border-bottom: none; }}
   .badge {{
     display: inline-block;
-    padding: 2px 8px;
+    padding: 3px 9px;
     border-radius: 4px;
-    font-size: 11px;
-    font-weight: 500;
+    font-size: 12px;
+    font-weight: 600;
   }}
   .badge-refined {{ background: #412402; color: #EF9F27; }}
   .badge-cluster {{ background: #26215C; color: #AFA9EC; }}
   .rel-box {{
     background: #242423;
     border-left: 2px solid #5DCAA5;
-    padding: 8px 10px;
+    padding: 9px 11px;
     border-radius: 0 4px 4px 0;
-    font-size: 12px;
+    font-size: 13.5px;
     color: #5DCAA5;
-    line-height: 1.5;
+    line-height: 1.55;
   }}
   footer {{
-    padding: 8px 20px;
-    font-size: 11px;
+    padding: 9px 20px;
+    font-size: 12px;
     color: #444441;
     border-top: 1px solid #2c2c2a;
     background: #1a1a1c;
@@ -584,86 +590,102 @@ def _console_panel_html(clusters: List[Cluster], schemas: Dict[str, "Schema"]) -
     color: #ffffff;
     border: none;
     border-radius: 6px;
-    padding: 5px 14px;
-    font-size: 12px;
+    padding: 7px 16px;
+    font-size: 13.5px;
     font-weight: 600;
     cursor: pointer;
   }}
   .console-toggle-btn:hover {{ background: #8f88e8; }}
   .console-panel {{
     position: fixed;
-    top: 0;
+    left: 0;
     right: 0;
-    width: 420px;
-    height: 100vh;
+    bottom: 0;
+    width: 100%;
+    height: 62vh;
     background: #1a1a1c;
-    border-left: 1px solid #2c2c2a;
-    transform: translateX(100%);
+    border-top: 1px solid #2c2c2a;
+    transform: translateY(100%);
     transition: transform 0.2s ease;
     z-index: 50;
     display: flex;
     flex-direction: column;
-    box-shadow: -8px 0 24px rgba(0,0,0,0.4);
+    box-shadow: 0 -8px 24px rgba(0,0,0,0.4);
   }}
-  .console-panel.open {{ transform: translateX(0); }}
+  .console-panel.open {{ transform: translateY(0); }}
   .console-header {{
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 14px 18px;
+    padding: 14px 20px;
     border-bottom: 1px solid #2c2c2a;
-    font-size: 13px;
-    font-weight: 600;
-    color: #e8e6de;
     flex-shrink: 0;
   }}
+  .console-header span {{
+    font-family: "Playfair Display", Georgia, serif;
+    font-size: 19px;
+    font-weight: 700;
+    color: #e8e6de;
+  }}
   .console-header button {{
-    background: none; border: none; color: #888780; font-size: 18px; cursor: pointer;
+    background: none; border: none; color: #888780; font-size: 20px; cursor: pointer;
   }}
-  .console-body {{ flex: 1; overflow-y: auto; padding: 16px 18px; }}
-  .console-row {{ margin-bottom: 12px; }}
+  .console-body {{ flex: 1; overflow: hidden; display: flex; min-height: 0; }}
+  .console-col {{ overflow-y: auto; padding: 16px 22px; min-width: 0; }}
+  .console-col + .console-col {{ border-left: 1px solid #2c2c2a; }}
+  .console-col-draft {{ flex: 0 0 400px; display: flex; flex-direction: column; }}
+  .console-col-results {{ flex: 1 1 auto; }}
+  .console-col-chat {{ flex: 0 0 400px; display: flex; flex-direction: column; }}
+  .console-row {{ margin-bottom: 14px; }}
   .console-row label {{
-    display: block; font-size: 11px; font-weight: 600; letter-spacing: 0.06em;
-    text-transform: uppercase; color: #5F5E5A; margin-bottom: 6px;
+    display: block; font-size: 12px; font-weight: 700; letter-spacing: 0.06em;
+    text-transform: uppercase; color: #5F5E5A; margin-bottom: 7px;
   }}
-  .console-row select, .console-row textarea, .chat-input-row input {{
+  .console-row select, .console-row textarea, .console-row input[type=number], .chat-input-row input {{
     width: 100%; background: #242423; border: 1px solid #2c2c2a; border-radius: 6px;
-    color: #e8e6de; font-size: 12.5px; padding: 8px 10px; font-family: inherit;
+    color: #e8e6de; font-size: 15px; padding: 9px 11px; font-family: inherit;
   }}
-  .console-row textarea {{ min-height: 140px; resize: vertical; line-height: 1.5; }}
+  .console-row textarea {{ min-height: 220px; resize: vertical; line-height: 1.6; }}
+  .word-count-row {{
+    display: flex; justify-content: space-between; align-items: center;
+    font-size: 12.5px; color: #888780; margin: -6px 0 14px;
+  }}
   .console-actions {{ display: flex; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; }}
-  .console-actions button, .chat-input-row button {{
+  .console-actions button, .chat-input-row button, .cuts-apply-btn {{
     background: #2c2c2a; color: #c2c0b6; border: 1px solid #3a3a37; border-radius: 6px;
-    padding: 7px 12px; font-size: 12px; cursor: pointer;
+    padding: 8px 14px; font-size: 13.5px; font-weight: 500; cursor: pointer;
   }}
-  .console-actions button:hover:not(:disabled), .chat-input-row button:hover {{ background: #3a3a37; }}
+  .console-actions button:hover:not(:disabled), .chat-input-row button:hover, .cuts-apply-btn:hover {{ background: #3a3a37; }}
   .console-actions button:disabled {{ opacity: 0.4; cursor: not-allowed; }}
-  .console-status {{ font-size: 12px; color: #888780; margin-bottom: 10px; min-height: 16px; }}
-  .verdict {{ font-size: 13px; color: #e8e6de; margin-bottom: 10px; line-height: 1.5; }}
-  .scores {{ display: flex; gap: 14px; font-size: 12px; color: #888780; margin-bottom: 12px; }}
+  .console-status {{ font-size: 13px; color: #888780; margin-bottom: 10px; min-height: 18px; }}
+  .verdict {{ font-size: 16px; color: #e8e6de; margin-bottom: 12px; line-height: 1.5; font-weight: 500; }}
+  .scores {{ display: flex; gap: 16px; font-size: 13.5px; color: #888780; margin-bottom: 14px; }}
   .scores b {{ color: #e8e6de; }}
-  .issue-group {{ margin-bottom: 14px; }}
+  .issue-group {{ margin-bottom: 16px; }}
   .issue-group-title {{
-    font-size: 10px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
-    color: #5F5E5A; margin-bottom: 6px;
+    font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
+    color: #5F5E5A; margin-bottom: 8px;
   }}
   .issue-row {{
     border-left: 3px solid #888780; background: #242423; border-radius: 0 6px 6px 0;
-    padding: 8px 10px; margin-bottom: 6px; font-size: 12px; line-height: 1.5;
+    padding: 10px 12px; margin-bottom: 7px; font-size: 13.5px; line-height: 1.55;
   }}
-  .issue-head {{ color: #e8e6de; font-weight: 500; margin-bottom: 3px; }}
-  .issue-sev {{ font-weight: 700; text-transform: uppercase; font-size: 10px; margin-right: 4px; }}
-  .issue-quote {{ font-style: italic; color: #b4b2a9; margin: 3px 0; }}
+  .issue-head {{ color: #e8e6de; font-weight: 600; margin-bottom: 4px; }}
+  .issue-sev {{ font-weight: 700; text-transform: uppercase; font-size: 11px; margin-right: 5px; }}
+  .issue-quote {{ font-style: italic; color: #b4b2a9; margin: 4px 0; }}
   .issue-detail {{ color: #888780; }}
+  .cut-row label {{ display: flex; gap: 8px; align-items: flex-start; cursor: pointer; }}
+  .cut-row input[type=checkbox] {{ margin-top: 3px; flex-shrink: 0; transform: scale(1.15); }}
+  .cuts-apply-btn {{ margin-top: 4px; }}
   .console-divider {{ border-top: 1px solid #2c2c2a; margin: 16px 0; }}
-  .chat-log {{ max-height: 260px; overflow-y: auto; margin-bottom: 10px; }}
-  .chat-question {{ font-size: 12.5px; color: #e8e6de; font-weight: 600; margin: 10px 0 6px; }}
+  .chat-log {{ flex: 1; overflow-y: auto; margin-bottom: 10px; }}
+  .chat-question {{ font-size: 14.5px; color: #e8e6de; font-weight: 700; margin: 10px 0 7px; }}
   .chat-answer {{
     border-left: 3px solid #888780; background: #242423; border-radius: 0 6px 6px 0;
-    padding: 7px 10px; margin-bottom: 6px; font-size: 12px; line-height: 1.5; color: #b4b2a9;
+    padding: 9px 12px; margin-bottom: 7px; font-size: 13.5px; line-height: 1.55; color: #b4b2a9;
   }}
-  .chat-answer b {{ color: #e8e6de; display: block; font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 3px; }}
-  .chat-input-row {{ display: flex; gap: 8px; }}
+  .chat-answer b {{ color: #e8e6de; display: block; font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px; }}
+  .chat-input-row {{ display: flex; gap: 8px; flex-shrink: 0; }}
   .chat-input-row input {{ flex: 1; }}
 </style>
 
@@ -673,29 +695,42 @@ def _console_panel_html(clusters: List[Cluster], schemas: Dict[str, "Schema"]) -
     <button id="consoleClose" aria-label="Close">&times;</button>
   </div>
   <div class="console-body">
-    <div class="console-row">
-      <label>Cluster</label>
-      <select id="clusterSelect"><option value="">Auto-detect from draft</option></select>
+    <div class="console-col console-col-draft">
+      <div class="console-row">
+        <label>Cluster</label>
+        <select id="clusterSelect"><option value="">Auto-detect from draft</option></select>
+      </div>
+      <div class="console-row">
+        <label>Draft</label>
+        <textarea id="draftText" placeholder="Paste your draft here..."></textarea>
+      </div>
+      <div class="word-count-row">
+        <span id="wordCountLabel">0 words</span>
+      </div>
+      <div class="console-row">
+        <label>Target word limit (for Suggest Cuts)</label>
+        <input type="number" id="targetWords" min="1" placeholder="e.g. 600">
+      </div>
+      <div class="console-actions">
+        <button id="btnCritique">Run Critique</button>
+        <button id="btnCoverage">Check Coverage</button>
+        <button id="btnFix" disabled>Apply Fixer</button>
+        <button id="btnCuts">Suggest Cuts</button>
+      </div>
+      <div id="consoleStatus" class="console-status"></div>
     </div>
-    <div class="console-row">
-      <label>Draft</label>
-      <textarea id="draftText" placeholder="Paste your draft here..."></textarea>
+    <div class="console-col console-col-results">
+      <div id="consoleResults"></div>
     </div>
-    <div class="console-actions">
-      <button id="btnCritique">Run Critique</button>
-      <button id="btnCoverage">Check Coverage</button>
-      <button id="btnFix" disabled>Apply Fixer</button>
-    </div>
-    <div id="consoleStatus" class="console-status"></div>
-    <div id="consoleResults"></div>
-    <div class="console-divider"></div>
-    <div class="console-row">
-      <label>Journalist Chat — Advocate vs. Skeptic</label>
-    </div>
-    <div id="chatLog" class="chat-log"></div>
-    <div class="chat-input-row">
-      <input id="chatInput" type="text" placeholder="Ask a question about your draft...">
-      <button id="btnChatSend">Ask</button>
+    <div class="console-col console-col-chat">
+      <div class="console-row">
+        <label>Journalist Chat — Advocate vs. Skeptic</label>
+      </div>
+      <div id="chatLog" class="chat-log"></div>
+      <div class="chat-input-row">
+        <input id="chatInput" type="text" placeholder="Ask a question about your draft...">
+        <button id="btnChatSend">Ask</button>
+      </div>
     </div>
   </div>
 </div>
@@ -735,10 +770,14 @@ def _console_panel_html(clusters: List[Cluster], schemas: Dict[str, "Schema"]) -
     document.getElementById("btnCritique").addEventListener("click", runCritique);
     document.getElementById("btnCoverage").addEventListener("click", runCoverage);
     document.getElementById("btnFix").addEventListener("click", runFix);
+    document.getElementById("btnCuts").addEventListener("click", runCuts);
     document.getElementById("btnChatSend").addEventListener("click", sendChat);
     document.getElementById("chatInput").addEventListener("keydown", e => {{
       if (e.key === "Enter") sendChat();
     }});
+    document.getElementById("draftText").addEventListener("input", updateWordCount);
+    document.getElementById("targetWords").addEventListener("input", updateWordCount);
+    updateWordCount();
   }}
 
   function setStatus(msg, isError) {{
@@ -747,8 +786,33 @@ def _console_panel_html(clusters: List[Cluster], schemas: Dict[str, "Schema"]) -
     el.style.color = isError ? "#E0584A" : "#888780";
   }}
 
+  function escapeHtml(s) {{
+    return (s == null ? "" : String(s))
+      .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  }}
+
   function currentDraft() {{ return document.getElementById("draftText").value.trim(); }}
   function currentClusterId() {{ return document.getElementById("clusterSelect").value || null; }}
+
+  function wordCount(text) {{
+    return (text.match(/\\S+/g) || []).length;
+  }}
+
+  function updateWordCount() {{
+    const words = wordCount(currentDraft());
+    const target = parseInt(document.getElementById("targetWords").value, 10);
+    const label = document.getElementById("wordCountLabel");
+    if (target && !isNaN(target) && target > 0) {{
+      const diff = words - target;
+      label.textContent = diff > 0
+        ? `${{words}} words (${{diff}} over ${{target}}-word limit)`
+        : `${{words}} words (${{Math.abs(diff)}} under ${{target}}-word limit)`;
+      label.style.color = diff > 0 ? "#E0584A" : "#1D9E75";
+    }} else {{
+      label.textContent = `${{words}} words`;
+      label.style.color = "#888780";
+    }}
+  }}
 
   async function postJSON(url, body) {{
     const res = await fetch(url, {{
@@ -797,11 +861,11 @@ def _console_panel_html(clusters: List[Cluster], schemas: Dict[str, "Schema"]) -
     if (!issues || !issues.length) return "";
     const rows = issues.map(i => `
       <div class="issue-row" style="border-left-color:${{SEV_COLOR[i.severity] || '#888780'}}">
-        <div class="issue-head"><span class="issue-sev" style="color:${{SEV_COLOR[i.severity] || '#888780'}}">${{i.severity}}</span>${{i.issue}}</div>
-        ${{(i.quote || i.claim) ? `<div class="issue-quote">"${{i.quote || i.claim}}"</div>` : ""}}
-        <div class="issue-detail">${{i.detail}}</div>
+        <div class="issue-head"><span class="issue-sev" style="color:${{SEV_COLOR[i.severity] || '#888780'}}">${{escapeHtml(i.severity)}}</span>${{escapeHtml(i.issue)}}</div>
+        ${{(i.quote || i.claim) ? `<div class="issue-quote">"${{escapeHtml(i.quote || i.claim)}}"</div>` : ""}}
+        <div class="issue-detail">${{escapeHtml(i.detail)}}</div>
       </div>`).join("");
-    return `<div class="issue-group"><div class="issue-group-title">${{title}}</div>${{rows}}</div>`;
+    return `<div class="issue-group"><div class="issue-group-title">${{escapeHtml(title)}}</div>${{rows}}</div>`;
   }}
 
   async function runCritique() {{
@@ -817,7 +881,7 @@ def _console_panel_html(clusters: List[Cluster], schemas: Dict[str, "Schema"]) -
 
       const c = lastCritique;
       document.getElementById("consoleResults").innerHTML = `
-        <div class="verdict">${{c.verdict}}</div>
+        <div class="verdict">${{escapeHtml(c.verdict)}}</div>
         <div class="scores">
           <span>Structure <b>${{c.score.structure}}</b>/10</span>
           <span>Argument <b>${{c.score.argument}}</b>/10</span>
@@ -826,7 +890,7 @@ def _console_panel_html(clusters: List[Cluster], schemas: Dict[str, "Schema"]) -
         ${{issueListHtml("Structural issues", c.structural_issues)}}
         ${{issueListHtml("Argumentative issues", c.argumentative_issues)}}
         ${{issueListHtml("Prose issues", c.prose_issues)}}
-        ${{(c.strengths && c.strengths.length) ? `<div class="issue-group"><div class="issue-group-title">Strengths</div>${{c.strengths.map(s => `<div class="issue-row" style="border-left-color:#1D9E75">${{s}}</div>`).join("")}}</div>` : ""}}
+        ${{(c.strengths && c.strengths.length) ? `<div class="issue-group"><div class="issue-group-title">Strengths</div>${{c.strengths.map(s => `<div class="issue-row" style="border-left-color:#1D9E75">${{escapeHtml(s)}}</div>`).join("")}}</div>` : ""}}
       `;
 
       // Colour graph nodes by the worst issue severity that mentions them --
@@ -865,12 +929,12 @@ def _console_panel_html(clusters: List[Cluster], schemas: Dict[str, "Schema"]) -
 
       const r = result.coverage;
       document.getElementById("consoleResults").innerHTML = `
-        ${{r.overall_summary ? `<div class="verdict">${{r.overall_summary}}</div>` : ""}}
+        ${{r.overall_summary ? `<div class="verdict">${{escapeHtml(r.overall_summary)}}</div>` : ""}}
         ${{r.items.map(item => `
           <div class="issue-row" style="border-left-color:${{COV_COLOR[item.status] || '#888780'}}">
-            <div class="issue-head"><span class="issue-sev" style="color:${{COV_COLOR[item.status] || '#888780'}}">${{item.status}}</span>${{item.component_name}}</div>
-            <div class="issue-detail">${{item.explanation}}</div>
-            ${{item.suggestion ? `<div class="issue-quote">${{item.suggestion}}</div>` : ""}}
+            <div class="issue-head"><span class="issue-sev" style="color:${{COV_COLOR[item.status] || '#888780'}}">${{escapeHtml(item.status)}}</span>${{escapeHtml(item.component_name)}}</div>
+            <div class="issue-detail">${{escapeHtml(item.explanation)}}</div>
+            ${{item.suggestion ? `<div class="issue-quote">${{escapeHtml(item.suggestion)}}</div>` : ""}}
           </div>`).join("")}}
       `;
       const colorMap = {{}};
@@ -889,18 +953,87 @@ def _console_panel_html(clusters: List[Cluster], schemas: Dict[str, "Schema"]) -
       document.getElementById("draftText").value = result.fixed_draft;
       document.getElementById("btnFix").disabled = true;
       lastCritique = null;
+      updateWordCount();
       setStatus("Draft rewritten. Re-run critique to verify.");
     }} catch (e) {{
       setStatus("Fixer failed: " + e.message, true);
     }}
   }}
 
+  async function runCuts() {{
+    const draft = currentDraft();
+    const target = parseInt(document.getElementById("targetWords").value, 10);
+    if (!draft) {{ setStatus("Paste a draft first.", true); return; }}
+    if (!target || target <= 0) {{ setStatus("Enter a target word limit first.", true); return; }}
+    setStatus("Finding cuts...");
+    try {{
+      const result = await postJSON("/api/cuts", {{ draft_text: draft, target_words: target, cluster_id: currentClusterId() }});
+      lastClusterId = result.cluster_id;
+      setStatus(`Matched cluster: ${{result.cluster_name}}`);
+
+      const c = result.cuts;
+      if (c.over_by === 0) {{
+        document.getElementById("consoleResults").innerHTML =
+          `<div class="verdict">${{escapeHtml(c.notes || "Already at or under the target word count.")}}</div>`;
+        return;
+      }}
+
+      let running = 0;
+      const rows = c.suggestions.map((s, i) => {{
+        running += s.word_count;
+        const reachedTarget = running >= c.over_by;
+        const warn = s.found_in_draft ? "" : `<div class="issue-quote" style="color:#E0584A">Could not find this exact text in the draft -- may need manual removal.</div>`;
+        return `
+          <div class="issue-row cut-row" style="border-left-color:${{reachedTarget ? '#1D9E75' : '#EF9F27'}}">
+            <label>
+              <input type="checkbox" class="cut-checkbox" data-quote="${{encodeURIComponent(s.quote)}}" ${{s.found_in_draft ? "" : "disabled"}}>
+              <span>
+                <div class="issue-quote">"${{escapeHtml(s.quote)}}"</div>
+                <div class="issue-detail">${{escapeHtml(s.reason)}} <b>(${{s.word_count}} words)</b></div>
+                ${{warn}}
+              </span>
+            </label>
+          </div>`;
+      }}).join("");
+
+      document.getElementById("consoleResults").innerHTML = `
+        <div class="verdict">${{c.current_words}} words, ${{c.over_by}} over your ${{c.target_words}}-word target.${{c.notes ? " " + escapeHtml(c.notes) : ""}}</div>
+        <div class="issue-group">
+          <div class="issue-group-title">Suggested cuts (safest first -- check the ones to apply)</div>
+          ${{rows}}
+        </div>
+        <button id="btnApplyCuts" class="cuts-apply-btn">Apply checked cuts</button>
+      `;
+      document.getElementById("btnApplyCuts").addEventListener("click", applyCuts);
+    }} catch (e) {{
+      setStatus("Suggest cuts failed: " + e.message, true);
+    }}
+  }}
+
+  function applyCuts() {{
+    let draft = currentDraft();
+    const checked = document.querySelectorAll(".cut-checkbox:checked");
+    let removed = 0;
+    checked.forEach(cb => {{
+      const quote = decodeURIComponent(cb.dataset.quote);
+      if (quote && draft.includes(quote)) {{
+        draft = draft.replace(quote, "");
+        removed++;
+      }}
+    }});
+    // Tidy up double spaces / blank lines left behind by removed sentences.
+    draft = draft.replace(/[ \\t]{{2,}}/g, " ").replace(/\\n{{3,}}/g, "\\n\\n").replace(/ +\\n/g, "\\n").trim();
+    document.getElementById("draftText").value = draft;
+    updateWordCount();
+    setStatus(removed ? `Applied ${{removed}} cut${{removed === 1 ? "" : "s"}}.` : "No cuts applied -- nothing was checked.");
+  }}
+
   function renderChat() {{
     const log = document.getElementById("chatLog");
     log.innerHTML = chatHistory.map(turn => `
-      <div class="chat-question">${{turn.question}}</div>
-      <div class="chat-answer" style="border-left-color:#1D9E75"><b>Advocate</b>${{turn.advocate}}</div>
-      <div class="chat-answer" style="border-left-color:#E0584A"><b>Skeptic</b>${{turn.skeptic}}</div>
+      <div class="chat-question">${{escapeHtml(turn.question)}}</div>
+      <div class="chat-answer" style="border-left-color:#1D9E75"><b>Advocate</b>${{escapeHtml(turn.advocate)}}</div>
+      <div class="chat-answer" style="border-left-color:#E0584A"><b>Skeptic</b>${{escapeHtml(turn.skeptic)}}</div>
     `).join("");
     log.scrollTop = log.scrollHeight;
   }}

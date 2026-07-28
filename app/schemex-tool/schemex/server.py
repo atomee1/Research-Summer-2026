@@ -17,7 +17,7 @@ from typing import Any, Optional
 from .io_utils import RunState
 from .llm import ClaudeClient, LLMError
 from .models import Cluster, CritiqueReport
-from .pipeline import pick_best_cluster, run_coverage_check, run_critique, run_debate, run_fixer
+from .pipeline import pick_best_cluster, run_coverage_check, run_critique, run_cuts, run_debate, run_fixer
 
 
 class _AppState:
@@ -96,6 +96,8 @@ def _make_handler(app: _AppState):
                     self._handle_fix(body)
                 elif self.path == "/api/coverage":
                     self._handle_coverage(body)
+                elif self.path == "/api/cuts":
+                    self._handle_cuts(body)
                 elif self.path == "/api/chat":
                     self._handle_chat(body)
                 else:
@@ -144,6 +146,28 @@ def _make_handler(app: _AppState):
                 "cluster_id": cluster.id,
                 "cluster_name": cluster.name,
                 "coverage": report.to_dict(),
+            })
+
+        def _handle_cuts(self, body: dict) -> None:
+            draft_text = (body.get("draft_text") or "").strip()
+            if not draft_text:
+                raise ValueError("draft_text is required")
+            target_words = body.get("target_words")
+            try:
+                target_words = int(target_words)
+            except (TypeError, ValueError):
+                raise ValueError("target_words must be a positive number")
+            if target_words <= 0:
+                raise ValueError("target_words must be a positive number")
+            cluster = app.cluster_for(body.get("cluster_id"), draft_text)
+            schema = app.state.schemas.get(cluster.id)
+            if schema is None:
+                raise ValueError(f"Cluster '{cluster.id}' has no schema.")
+            report = run_cuts(app.client(), "draft", draft_text, schema, cluster, target_words)
+            self._send_json({
+                "cluster_id": cluster.id,
+                "cluster_name": cluster.name,
+                "cuts": report.to_dict(),
             })
 
         def _handle_chat(self, body: dict) -> None:

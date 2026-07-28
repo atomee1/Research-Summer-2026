@@ -521,3 +521,67 @@ def run_debate(
     prompt = build_debate_prompt(schema, draft_text, cluster.name, history, question)
     raw = client.complete_json(DEBATE_SYSTEM, prompt)
     return {"advocate": raw.get("advocate", ""), "skeptic": raw.get("skeptic", "")}
+
+
+# ---------------------------------------------------------------------------
+# Stage 8: Cuts bot -- trim a draft down to a word limit
+# ---------------------------------------------------------------------------
+
+def run_cuts(
+    client: ClaudeClient,
+    draft_path: str,
+    draft_text: str,
+    schema: Schema,
+    cluster: Cluster,
+    target_words: int,
+) -> "CutsReport":
+    """Suggest specific, verbatim cuts to bring a draft down to a word
+    limit, ordered safest-first, without touching required schema content
+    or direct quotes. Word counts are computed in Python, not trusted from
+    the model, so the running total toward the target is reliable.
+    """
+    from .models import CutSuggestion, CutsReport
+    from .prompts import CUTS_SYSTEM, build_cuts_prompt
+
+    current_words = len(draft_text.split())
+    over_by = max(0, current_words - target_words)
+
+    print(f"[cuts] '{draft_path}': {current_words} words, target {target_words} "
+          f"({over_by} over)")
+
+    if over_by == 0:
+        return CutsReport(
+            draft_path=draft_path,
+            cluster_name=cluster.name,
+            target_words=target_words,
+            current_words=current_words,
+            over_by=0,
+            suggestions=[],
+            notes="Already at or under the target word count.",
+        )
+
+    prompt = build_cuts_prompt(schema, draft_text, cluster.name, target_words, current_words, over_by)
+    raw = client.complete_json(CUTS_SYSTEM, prompt)
+
+    suggestions = []
+    for item in raw.get("suggestions", []):
+        quote = item.get("quote", "")
+        suggestions.append(CutSuggestion(
+            quote=quote,
+            reason=item.get("reason", ""),
+            word_count=len(quote.split()),
+            found_in_draft=bool(quote.strip()) and quote in draft_text,
+        ))
+
+    report = CutsReport(
+        draft_path=draft_path,
+        cluster_name=cluster.name,
+        target_words=target_words,
+        current_words=current_words,
+        over_by=over_by,
+        suggestions=suggestions,
+        notes=raw.get("notes", ""),
+    )
+    print(f"  -> {len(suggestions)} cut suggestions "
+          f"({sum(s.word_count for s in suggestions)} words if all applied)")
+    return report
