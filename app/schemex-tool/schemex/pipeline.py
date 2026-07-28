@@ -389,6 +389,7 @@ def run_pipeline(
     seed: Optional[int] = None,
 ) -> RunState:
     state = RunState(output_dir)
+    state.record_example_word_counts(examples)
 
     state.clusters = run_clustering(client, examples, interactive=interactive)
     state.save()
