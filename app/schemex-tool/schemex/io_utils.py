@@ -718,13 +718,7 @@ def inject_coverage_into_graph(report: "CoverageReport", graph_html_path: str) -
 (function () {{
   const COVERAGE = {overlay_json};
 
-  function applyOverlay() {{
-    if (typeof data === "undefined" || typeof network === "undefined") {{
-      setTimeout(applyOverlay, 80);
-      return;
-    }}
-
-    // 1. Repaint component nodes
+  function buildUpdates() {{
     const updates = [];
     data.nodes.forEach(function (node) {{
       if (node.group !== "component") return;
@@ -751,8 +745,31 @@ def inject_coverage_into_graph(report: "CoverageReport", graph_html_path: str) -
         }}
       }}
     }});
-    data.nodes.update(updates);
+    return updates;
+  }}
+
+  function paintNodes() {{
+    const updates = buildUpdates();
+    if (updates.length === 0) return;
+    // Remove then re-add so vis.js treats them as new and repaints
+    const ids = updates.map(function(u) {{ return u.id; }});
+    const originals = ids.map(function(id) {{ return data.nodes.get(id); }});
+    data.nodes.remove(ids);
+    data.nodes.add(updates.map(function(u, i) {{
+      return Object.assign({{}}, originals[i], u);
+    }}));
     network.redraw();
+  }}
+
+  function applyOverlay() {{
+    if (typeof data === "undefined" || typeof network === "undefined") {{
+      setTimeout(applyOverlay, 80);
+      return;
+    }}
+
+    // Paint immediately and again after stabilization to catch both cases
+    paintNodes();
+    network.once("stabilized", function() {{ paintNodes(); }});
 
     // 2. Patch sidebar to show coverage panel
     const _origRender = window._origRenderSidebar || window.renderSidebar;
