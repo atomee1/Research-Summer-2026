@@ -1,5 +1,7 @@
 from pydantic import BaseModel, Field
 
+LIST_FIELDS = {"main_actors", "causal_chain", "missing_information_a_reporter_might_seek"}
+
 class SchemaCard(BaseModel):
     headline: str = Field(description="The headline or best short title for the article.")
     topic: str = Field(description="Surface topic, such as politics, health, economy, disaster, law, sports.")
@@ -13,3 +15,23 @@ class SchemaCard(BaseModel):
     narrative_schema: str = Field(description="The deeper reusable story structure, ignoring surface topic.")
     analogy_signature: str = Field(description="A compact phrase useful for finding structurally similar stories.")
     missing_information_a_reporter_might_seek: list[str] = Field(description="Reporting questions or missing evidence a journalist might pursue.")
+
+class TextFieldFix(BaseModel):
+    value: str = Field(description="The corrected/improved value for the field, grounded in the article.")
+
+class ListFieldFix(BaseModel):
+    values: list[str] = Field(description="The corrected/improved list of values for the field, grounded in the article.")
+
+class CritiqueIssue(BaseModel):
+    field: str = Field(description="The SchemaCard field this issue concerns, e.g. 'central_conflict'.")
+    severity: str = Field(description="One of: low, medium, high.")
+    issue: str = Field(description="What is vague, unsupported by the article, or missing.")
+    suggestion: str = Field(description="A concrete instruction for how to fix this field.")
+
+class SchemaCritique(BaseModel):
+    overall_assessment: str = Field(description="A one to two sentence summary of the schema's faithfulness to the article.")
+    issues: list[CritiqueIssue] = Field(description="Specific issues found, most important first. Empty if the schema holds up well.")
+
+class DebateResponse(BaseModel):
+    advocate: str = Field(description="An answer defending/supporting the article's framing and central actors, grounded in the article's facts.")
+    skeptic: str = Field(description="An answer challenging that framing and raising doubts a critical editor would raise, grounded in the article's facts.")
