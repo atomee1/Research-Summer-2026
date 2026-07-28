@@ -12,9 +12,14 @@ from __future__ import annotations
 import argparse
 import os
 import sys
-from pathlib import Path
 
-from .io_utils import RunState, load_examples, write_coverage_report
+from .io_utils import (
+    RunState,
+    inject_coverage_into_graph,
+    load_examples,
+    write_coverage_html,
+    write_coverage_report,
+)
 from .llm import DEFAULT_MAX_TOKENS, DEFAULT_MODEL, ClaudeClient, LLMError
 from .pipeline import pick_best_cluster, run_coverage_check, run_pipeline
 
@@ -76,8 +81,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     check.add_argument(
         "--draft", "-d", required=True,
-        help="Path to a plain-text draft article to check, or a directory "
-             "of .txt drafts to check in batch.",
+        help="Path to a plain-text draft article to check.",
     )
     check.add_argument(
         "--state", "-s", required=True,
@@ -115,10 +119,8 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv=None) -> int:
-    print("MAIN STARTED", flush=True)
     parser = build_parser()
     args = parser.parse_args(argv)
-    print(f"COMMAND: {args.command}", flush=True)
 
     if args.command == "run":
         try:
@@ -153,6 +155,24 @@ def main(argv=None) -> int:
         return 0
 
     if args.command == "check":
+        if not os.path.exists(args.draft):
+            print(f"Error: draft file not found: {args.draft}", file=sys.stderr)
+            return 1
+        with open(args.draft, "r", encoding="utf-8") as f:
+            draft_text = f.read()
+        if not draft_text.strip():
+            print("Error: draft file is empty.", file=sys.stderr)
+            return 1
+
+        state = RunState.load(args.state)
+        if not state.clusters or not state.schemas:
+            print(
+                f"Error: no clusters/schemas found in {args.state}. "
+                f"Run `schemex run` first to produce a state.json there.",
+                file=sys.stderr,
+            )
+            return 1
+
         try:
             client = ClaudeClient(
                 model=args.model,
@@ -164,53 +184,40 @@ def main(argv=None) -> int:
             print(f"Error: {exc}", file=sys.stderr)
             return 1
 
-        if not os.path.exists(args.draft):
-            print(f"Error: draft path not found: {args.draft}", file=sys.stderr)
-            return 1
-
-        try:
-            state = RunState.load(args.state)
-        except (OSError, ValueError) as exc:
-            print(f"Error loading state: {exc}", file=sys.stderr)
-            return 1
-
-        draft_path_obj = Path(args.draft)
-
-        if draft_path_obj.is_dir():
-            draft_files = sorted(draft_path_obj.glob("*.txt"))
-            if not draft_files:
-                print(f"Error: no .txt files found in {args.draft}", file=sys.stderr)
+        if args.cluster:
+            cluster = next((c for c in state.clusters if c.id == args.cluster), None)
+            if cluster is None:
+                print(f"Error: no cluster with id '{args.cluster}' in {args.state}. "
+                      f"Available ids: {', '.join(c.id for c in state.clusters)}",
+                      file=sys.stderr)
                 return 1
         else:
-            draft_files = [draft_path_obj]
+            cluster = pick_best_cluster(client, draft_text, state.clusters)
+            print(f"[coverage] auto-matched draft to cluster '{cluster.name}' "
+                  f"({cluster.id})")
+
+        schema = state.schemas.get(cluster.id)
+        if schema is None:
+            print(f"Error: cluster '{cluster.id}' has no schema in {args.state}.",
+                  file=sys.stderr)
+            return 1
+
+        report = run_coverage_check(client, args.draft, draft_text, schema, cluster)
 
         output_dir = args.output or args.state
+        md_path   = write_coverage_report(report, output_dir)
+        html_path = write_coverage_html(report, output_dir)
 
-        for draft_file in draft_files:
-            with open(draft_file, "r", encoding="utf-8") as f:
-                draft_text = f.read()
+        # Inject coverage colours into graph.html if it exists
+        graph_path = os.path.join(output_dir, "graph.html")
+        graph_updated = inject_coverage_into_graph(report, graph_path)
 
-            if not draft_text.strip():
-                print(f"Error: draft file is empty: {draft_file}", file=sys.stderr)
-                continue
-
-            if args.cluster:
-                cluster = next(
-                    (c for c in state.clusters if c.id == args.cluster), None
-                )
-                if cluster is None:
-                    print(f"Error: cluster '{args.cluster}' not found in state.", file=sys.stderr)
-                    continue
-            else:
-                cluster = pick_best_cluster(client, draft_text, state.clusters)
-                print(f"[coverage] {draft_file.name}: auto-matched to cluster '{cluster.name}'")
-
-            schema = state.schemas[cluster.id]
-
-            report = run_coverage_check(client, str(draft_file), draft_text, schema, cluster)
-            md_path = write_coverage_report(report, output_dir)
-            print(f"  -> {md_path}")
-
+        print(f"\nCoverage report  -> {md_path}")
+        print(f"Visual report    -> {html_path}")
+        if graph_updated:
+            print(f"Graph updated    -> {graph_path}  (node colours now reflect coverage)")
+        else:
+            print("Note: graph.html not found in output dir — run `schemex run` first to generate it.")
         return 0
 
     parser.print_help()

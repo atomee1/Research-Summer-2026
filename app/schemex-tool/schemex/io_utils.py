@@ -539,3 +539,273 @@ network.on("doubleClick", params => {{
         with open(path, "w", encoding="utf-8") as f:
             f.write(report)
         return path
+
+
+# ---------------------------------------------------------------------------
+# Visual coverage report (HTML)
+# ---------------------------------------------------------------------------
+
+_STATUS_COLOR = {
+    "present": "#1D9E75",
+    "weak":    "#EF9F27",
+    "missing": "#E0584A",
+}
+_STATUS_BG = {
+    "present": "#0F2A22",
+    "weak":    "#2E2008",
+    "missing": "#2E1411",
+}
+_STATUS_LABEL = {"present": "Present", "weak": "Weak", "missing": "Missing"}
+
+
+def _esc(text: str) -> str:
+    return (
+        (text or "")
+        .replace("&", "&amp;")
+        .replace("<", "&lt;")
+        .replace(">", "&gt;")
+        .replace('"', "&quot;")
+    )
+
+
+def write_coverage_html(report: "CoverageReport", output_dir: str) -> str:
+    os.makedirs(output_dir, exist_ok=True)
+    base = os.path.splitext(os.path.basename(report.draft_path))[0]
+    html_path = os.path.join(output_dir, f"coverage_{base}.html")
+
+    counts = report.counts()
+    total = max(len(report.items), 1)
+    present_pct = round(100 * counts["present"] / total)
+    weak_pct    = round(100 * counts["weak"]    / total)
+    p_end = present_pct
+    w_end = p_end + weak_pct
+    ring_css = (
+        f"conic-gradient({_STATUS_COLOR['present']} 0% {p_end}%, "
+        f"{_STATUS_COLOR['weak']} {p_end}% {w_end}%, "
+        f"{_STATUS_COLOR['missing']} {w_end}% 100%)"
+    )
+
+    cards_html = []
+    for item in report.items:
+        color = _STATUS_COLOR.get(item.status, "#888780")
+        bg    = _STATUS_BG.get(item.status, "#1a1a1c")
+        label = _STATUS_LABEL.get(item.status, item.status)
+        suggestion_html = (
+            f'<div class="suggestion"><span class="suggestion-label">Draft suggestion</span>{_esc(item.suggestion)}</div>'
+            if item.suggestion else ""
+        )
+        cards_html.append(f"""
+        <div class="card" style="border-left-color:{color};background:{bg}1A">
+          <div class="card-head">
+            <span class="badge" style="background:{bg};color:{color}">{label}</span>
+            <span class="card-title">{_esc(item.component_name)}</span>
+          </div>
+          <div class="card-body">{_esc(item.explanation)}</div>
+          {suggestion_html}
+        </div>""")
+
+    summary_html = (
+        f'<div class="summary"><div class="summary-label">Editor\u2019s note</div>{_esc(report.overall_summary)}</div>'
+        if report.overall_summary else ""
+    )
+
+    html = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Coverage — {_esc(os.path.basename(report.draft_path))}</title>
+<style>
+  *,*::before,*::after{{box-sizing:border-box;margin:0;padding:0}}
+  body{{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#0f0f10;color:#c2c0b6;min-height:100vh;padding:32px 24px 60px}}
+  .wrap{{max-width:720px;margin:0 auto}}
+  .eyebrow{{font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#888780;margin-bottom:6px}}
+  h1{{font-size:22px;font-weight:600;color:#e8e6de;margin-bottom:4px}}
+  .subtitle{{font-size:13px;color:#888780;margin-bottom:28px}}
+  .top{{display:flex;align-items:center;gap:28px;background:#1a1a1c;border:1px solid #2c2c2a;border-radius:12px;padding:24px;margin-bottom:24px}}
+  .ring{{width:96px;height:96px;border-radius:50%;background:{ring_css};flex-shrink:0;display:flex;align-items:center;justify-content:center;position:relative}}
+  .ring::after{{content:"";position:absolute;width:68px;height:68px;border-radius:50%;background:#1a1a1c}}
+  .ring-pct{{position:relative;z-index:1;font-size:18px;font-weight:700;color:#e8e6de}}
+  .legend{{display:flex;flex-direction:column;gap:8px}}
+  .legend-row{{display:flex;align-items:center;gap:8px;font-size:13px}}
+  .legend-dot{{width:9px;height:9px;border-radius:50%;flex-shrink:0}}
+  .legend-count{{color:#e8e6de;font-weight:600;margin-left:2px}}
+  .summary{{background:#1a1a1c;border:1px solid #2c2c2a;border-radius:10px;padding:16px 18px;margin-bottom:24px;font-size:13px;line-height:1.6}}
+  .summary-label{{font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#888780;margin-bottom:6px;display:block}}
+  .section-label{{font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#5F5E5A;margin-bottom:12px}}
+  .card{{border-left:3px solid;border-radius:0 10px 10px 0;padding:14px 16px;margin-bottom:10px}}
+  .card-head{{display:flex;align-items:center;gap:10px;margin-bottom:8px}}
+  .badge{{font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:3px 9px;border-radius:20px;flex-shrink:0}}
+  .card-title{{font-size:14px;font-weight:600;color:#e8e6de}}
+  .card-body{{font-size:13px;line-height:1.6;color:#b4b2a9}}
+  .suggestion{{margin-top:10px;padding-top:10px;border-top:1px dashed #2c2c2a;font-size:12.5px;line-height:1.6;color:#c2c0b6;font-style:italic}}
+  .suggestion-label{{display:block;font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#5F5E5A;margin-bottom:4px;font-style:normal}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="eyebrow">Schemex coverage check</div>
+  <h1>{_esc(os.path.basename(report.draft_path))}</h1>
+  <div class="subtitle">Matched schema: {_esc(report.cluster_name)} (v{report.schema_version})</div>
+  <div class="top">
+    <div class="ring"><span class="ring-pct">{present_pct}%</span></div>
+    <div class="legend">
+      <div class="legend-row"><span class="legend-dot" style="background:{_STATUS_COLOR['present']}"></span>Present<span class="legend-count">{counts['present']}</span></div>
+      <div class="legend-row"><span class="legend-dot" style="background:{_STATUS_COLOR['weak']}"></span>Weak<span class="legend-count">{counts['weak']}</span></div>
+      <div class="legend-row"><span class="legend-dot" style="background:{_STATUS_COLOR['missing']}"></span>Missing<span class="legend-count">{counts['missing']}</span></div>
+    </div>
+  </div>
+  {summary_html}
+  <div class="section-label">Component-by-component</div>
+  {''.join(cards_html)}
+</div>
+</body>
+</html>"""
+
+    with open(html_path, "w", encoding="utf-8") as f:
+        f.write(html)
+    return html_path
+
+
+# ---------------------------------------------------------------------------
+# Coverage overlay injection into graph.html
+# ---------------------------------------------------------------------------
+
+_COVERAGE_COLORS = {
+    "present": "#1D9E75",
+    "weak":    "#EF9F27",
+    "missing": "#E0584A",
+}
+_COVERAGE_MARKER = "/* SCHEMEX_COVERAGE_OVERLAY */"
+
+
+def inject_coverage_into_graph(report: "CoverageReport", graph_html_path: str) -> bool:
+    if not os.path.exists(graph_html_path):
+        return False
+
+    with open(graph_html_path, "r", encoding="utf-8") as f:
+        html = f.read()
+
+    # Remove any previous overlay
+    if _COVERAGE_MARKER in html:
+        start = html.index(_COVERAGE_MARKER)
+        script_open  = html.rfind("<script>", 0, start)
+        script_close = html.find("</script>", start)
+        if script_open != -1 and script_close != -1:
+            html = html[:script_open] + html[script_close + len("</script>"):]
+
+    overlay_items = {
+        item.component_name: {
+            "status":      item.status,
+            "color":       _COVERAGE_COLORS.get(item.status, "#888780"),
+            "explanation": item.explanation,
+            "suggestion":  item.suggestion,
+            "draft":       os.path.basename(report.draft_path),
+            "cluster":     report.cluster_name,
+        }
+        for item in report.items
+    }
+
+    overlay_json  = json.dumps(overlay_items, indent=2)
+    draft_name    = os.path.basename(report.draft_path)
+    cluster_name  = report.cluster_name
+    counts        = report.counts()
+
+    overlay_script = f"""
+<script>
+{_COVERAGE_MARKER}
+// Coverage overlay — injected by `schemex check`
+// Draft: {draft_name}  |  Schema: {cluster_name}
+(function () {{
+  const COVERAGE = {overlay_json};
+
+  function applyOverlay() {{
+    if (typeof data === "undefined" || typeof network === "undefined") {{
+      setTimeout(applyOverlay, 80);
+      return;
+    }}
+
+    // 1. Repaint component nodes
+    const updates = [];
+    data.nodes.forEach(function (node) {{
+      if (node.group !== "component") return;
+      const label = node.label || "";
+      let hit = COVERAGE[label];
+      if (!hit) {{
+        const lowerLabel = label.toLowerCase();
+        for (const [name, info] of Object.entries(COVERAGE)) {{
+          if (name.toLowerCase() === lowerLabel) {{ hit = info; break; }}
+        }}
+      }}
+      if (hit) {{
+        updates.push({{
+          id: node.id,
+          color: {{
+            background: hit.color,
+            border:     hit.color,
+            highlight:  {{ background: hit.color, border: "#ffffff" }},
+            hover:      {{ background: hit.color, border: "#ffffff" }},
+          }},
+        }});
+        if (typeof DETAILS !== "undefined" && DETAILS[node.id]) {{
+          DETAILS[node.id].coverage = hit;
+        }}
+      }}
+    }});
+    data.nodes.update(updates);
+    network.redraw();
+
+    // 2. Patch sidebar to show coverage panel
+    const _origRender = window._origRenderSidebar || window.renderSidebar;
+    window._origRenderSidebar = _origRender;
+    window.renderSidebar = function (nodeId) {{
+      _origRender(nodeId);
+      const d = DETAILS[nodeId];
+      if (!d || d.type !== "component" || !d.coverage) return;
+      const cov = d.coverage;
+      const colorMap = {{ present: "#1D9E75", weak: "#EF9F27", missing: "#E0584A" }};
+      const bgMap    = {{ present: "#0F2A22", weak: "#2E2008", missing: "#2E1411" }};
+      const labelMap = {{ present: "Present",  weak: "Weak",    missing: "Missing"  }};
+      const color = colorMap[cov.status] || "#888780";
+      const bg    = bgMap[cov.status]    || "#1a1a1c";
+      const label = labelMap[cov.status] || cov.status;
+      const suggHtml = cov.suggestion
+        ? `<div style="margin-top:10px;padding-top:10px;border-top:1px dashed #2c2c2a">
+             <div style="font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#5F5E5A;margin-bottom:4px">Draft suggestion</div>
+             <div style="font-size:12px;line-height:1.6;color:#c2c0b6;font-style:italic">${{cov.suggestion}}</div>
+           </div>`
+        : "";
+      const panel = document.createElement("div");
+      panel.style.cssText = `margin-top:14px;border-left:3px solid ${{color}};background:${{bg}}26;border-radius:0 8px 8px 0;padding:12px 14px`;
+      panel.innerHTML = `
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+          <span style="font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:3px 9px;border-radius:20px;background:${{bg}};color:${{color}}">${{label}}</span>
+          <span style="font-size:11px;color:#888780">in <em>${{cov.draft}}</em></span>
+        </div>
+        <div style="font-size:13px;line-height:1.6;color:#b4b2a9">${{cov.explanation}}</div>
+        ${{suggHtml}}`;
+      const sidebar = document.getElementById("sidebar");
+      if (sidebar) sidebar.appendChild(panel);
+    }};
+
+    // 3. Update header legend
+    const legend = document.querySelector(".legend");
+    if (legend) {{
+      legend.innerHTML = `
+        <span style="font-size:11px;color:#5F5E5A;margin-right:4px">Coverage:</span>
+        <span><span class="dot" style="background:#1D9E75"></span>Present ({counts["present"]})</span>
+        <span><span class="dot" style="background:#EF9F27"></span>Weak ({counts["weak"]})</span>
+        <span><span class="dot" style="background:#E0584A"></span>Missing ({counts["missing"]})</span>
+        <span style="margin-left:8px;padding-left:8px;border-left:1px solid #2c2c2a;color:#5F5E5A;font-size:11px">Draft: {draft_name}</span>`;
+    }}
+  }}
+
+  applyOverlay();
+}})();
+</script>"""
+
+    html = html.replace("</body>", overlay_script + "\n</body>") if "</body>" in html else html + overlay_script
+
+    with open(graph_html_path, "w", encoding="utf-8") as f:
+        f.write(html)
+
+    return True
