@@ -86,6 +86,42 @@ In interactive mode you can, between stages:
   after reading the AI-generated example, the real example it was
   contrasted against, and the model's own comparison notes
 
+## Interactive graph: live fixer, critic bot, coverage check, and debate chat
+
+`schemex run` writes a static `graph.html` you can open with any local
+file server. `schemex serve` instead serves a *live* version of that same
+graph with a "Journalist Console" panel, so you can paste a draft and get
+results in the browser without a separate CLI call per check:
+
+```bash
+schemex serve --state out/ --port 8000
+```
+
+Open `http://127.0.0.1:8000/` and click **Console** in the header. From
+there you can:
+
+- **Run Critique** — the critic bot (`schemex critique`) gives a full
+  editorial verdict (structure/argument/prose scores, severity-tagged
+  issues, strengths), and colours the matched cluster's graph nodes by the
+  worst issue that mentions them.
+- **Apply Fixer** — rewrites the draft to address every issue from the
+  most recent critique (`schemex critique --fix`), right in the draft box.
+- **Check Coverage** — the coverage checker (`schemex check`) reports
+  present/weak/missing per schema component with ready-to-paste
+  suggestions, and colours nodes accordingly.
+- **Journalist Chat (Advocate vs. Skeptic)** — ask a question about your
+  draft and get two opposing, schema-grounded answers: an Advocate who
+  defends its current framing and a Skeptic who challenges it, so you can
+  stress-test your angle before publishing.
+
+Pick a cluster from the dropdown, or leave it on "Auto-detect from draft"
+to let the model match your draft to the closest structural pattern, same
+as omitting `--cluster` on the CLI commands.
+
+`schemex serve` doesn't require `ANTHROPIC_API_KEY` just to view the
+graph -- only the Console's buttons need it, same as `--api-key` on the
+other subcommands.
+
 ## Input format
 
 Either:
@@ -113,6 +149,14 @@ schemex run --input PATH --output DIR [options]
   --api-key KEY                    default: $ANTHROPIC_API_KEY
   --verbose                        print full prompts/responses for every
                                     model call
+
+schemex serve --state DIR [options]
+
+  --port, -p N                     default: 8000
+  --model NAME                     default: claude-sonnet-4-6 (or SCHEMEX_MODEL)
+  --max-tokens N                   default: 4096
+  --api-key KEY                    default: $ANTHROPIC_API_KEY (only needed
+                                    once you use a Console action)
 ```
 
 ## Project layout
@@ -123,7 +167,10 @@ schemex/
   llm.py        Anthropic API wrapper + defensive JSON extraction
   prompts.py    the three stage prompts (clustering / abstraction / refinement)
   pipeline.py   run_clustering(), run_abstraction(), run_refinement(), run_pipeline()
-  io_utils.py   load_examples(), RunState (save/load/report)
+  io_utils.py   load_examples(), RunState (save/load/report), graph.html
+                 rendering (incl. the Journalist Console panel)
+  server.py     `schemex serve` -- stdlib HTTP server exposing critique /
+                 fix / coverage / chat as JSON endpoints for the live graph
   cli.py        argparse CLI
 examples/
   wikinews_sample.json   22 short news articles spanning very different

@@ -495,3 +495,29 @@ def run_fixer(
     fixed = client.complete(FIXER_SYSTEM, prompt)
     print(f"  -> rewritten draft: {len(fixed.split())} words")
     return fixed.strip()
+
+
+# ---------------------------------------------------------------------------
+# Stage 7: Debate bot -- advocate vs. skeptic journalist chat
+# ---------------------------------------------------------------------------
+
+def run_debate(
+    client: ClaudeClient,
+    draft_text: str,
+    schema: Schema,
+    cluster: Cluster,
+    history: List[dict],
+    question: str,
+) -> Dict[str, str]:
+    """Answer a reporter's question about their draft two opposing ways:
+    an Advocate who defends the current framing, and a Skeptic who
+    challenges it -- both grounded in the draft and its matched schema.
+    """
+    from .prompts import DEBATE_SYSTEM, build_debate_prompt
+
+    print(f"[debate] cluster '{cluster.name}': {question[:60]}"
+          f"{'...' if len(question) > 60 else ''}")
+
+    prompt = build_debate_prompt(schema, draft_text, cluster.name, history, question)
+    raw = client.complete_json(DEBATE_SYSTEM, prompt)
+    return {"advocate": raw.get("advocate", ""), "skeptic": raw.get("skeptic", "")}
