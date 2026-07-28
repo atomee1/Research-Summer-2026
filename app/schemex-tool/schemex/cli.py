@@ -23,6 +23,12 @@ from .io_utils import (
     write_critique_report,
 )
 from .llm import DEFAULT_MAX_TOKENS, DEFAULT_MODEL, ClaudeClient, LLMError
+
+# `schemex serve`'s coverage/critique responses tend to run longer than the
+# other subcommands' (the coverage prompt asks for full ready-to-paste
+# suggestion text per component, across every component in the schema), so
+# give it a higher default token budget to avoid truncated/unparseable JSON.
+SERVE_DEFAULT_MAX_TOKENS = 8000
 from .pipeline import pick_best_cluster, run_coverage_check, run_critique, run_fixer, run_pipeline
 
 
@@ -148,7 +154,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="Port to serve on (default: 8000).")
     serve.add_argument("--model", default=DEFAULT_MODEL,
         help=f"Claude model to use (default: {DEFAULT_MODEL}; or set SCHEMEX_MODEL).")
-    serve.add_argument("--max-tokens", type=int, default=DEFAULT_MAX_TOKENS)
+    serve.add_argument("--max-tokens", type=int, default=SERVE_DEFAULT_MAX_TOKENS,
+        help=f"Max tokens per model response (default: {SERVE_DEFAULT_MAX_TOKENS} -- "
+             "higher than the other subcommands since coverage/critique replies "
+             "run long; raise further with e.g. --max-tokens 16000 if you still "
+             "see 'Could not parse JSON' errors on large schemas).")
     serve.add_argument("--api-key", default=None,
         help="Anthropic API key. Defaults to the ANTHROPIC_API_KEY env var. "
              "Only needed once you click Critique/Coverage/Fix/Ask in the browser.")
