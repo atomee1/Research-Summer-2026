@@ -137,6 +137,22 @@ def build_parser() -> argparse.ArgumentParser:
     critique.add_argument("--api-key", default=None)
     critique.add_argument("--verbose", action="store_true")
 
+    serve = sub.add_parser(
+        "serve",
+        help="Serve the schema graph with a live fixer, critic bot, coverage "
+             "check, and advocate/skeptic debate chat in the browser.",
+    )
+    serve.add_argument("--state", "-s", required=True,
+        help="Path to schemex output directory containing state.json.")
+    serve.add_argument("--port", "-p", type=int, default=8000,
+        help="Port to serve on (default: 8000).")
+    serve.add_argument("--model", default=DEFAULT_MODEL,
+        help=f"Claude model to use (default: {DEFAULT_MODEL}; or set SCHEMEX_MODEL).")
+    serve.add_argument("--max-tokens", type=int, default=DEFAULT_MAX_TOKENS)
+    serve.add_argument("--api-key", default=None,
+        help="Anthropic API key. Defaults to the ANTHROPIC_API_KEY env var. "
+             "Only needed once you click Critique/Coverage/Fix/Ask in the browser.")
+
     return parser
 
 
@@ -303,6 +319,17 @@ def main(argv=None) -> int:
         if critique.fixed_draft:
             print(f"Fixed draft included in both reports.")
         return 0
+
+    if args.command == "serve":
+        from .server import run_server
+
+        return run_server(
+            state_dir=args.state,
+            port=args.port,
+            model=args.model,
+            max_tokens=args.max_tokens,
+            api_key=args.api_key,
+        )
 
     parser.print_help()
     return 1

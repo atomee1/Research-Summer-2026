@@ -128,12 +128,26 @@ class RunState:
         return state
 
     def write_graph_html(self) -> str:
-        """Write a self-contained interactive HTML visualisation of the run.
+        """Write the static graph.html (no live fixer/critique/chat -- run
+        `schemex serve --state <dir>` for the interactive version)."""
+        html = self.render_graph_html(interactive=False)
+        path = os.path.join(self.output_dir, "graph.html")
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(html)
+        return path
 
-        Opens in any browser — no server needed.  Uses vis.js (loaded from
-        CDN) to render clusters as large hub nodes and schema components as
-        smaller satellite nodes.  Clicking any node shows its details in a
-        sidebar panel.
+    def render_graph_html(self, interactive: bool = False) -> str:
+        """Build the self-contained HTML visualisation of the run, as a string.
+
+        Uses vis.js (loaded from CDN) to render clusters as large hub nodes
+        and schema components as smaller satellite nodes. Clicking any node
+        shows its details in a sidebar panel.
+
+        When interactive=True (used by `schemex serve`), also injects a
+        "Journalist Console" panel: a live fixer, critic bot, coverage
+        check, and an advocate/skeptic debate chat, all backed by the JSON
+        API endpoints the server exposes -- so results appear right in the
+        browser instead of requiring a separate CLI run per check.
         """
         # Build the node/edge data the browser will consume
         nodes: list[dict] = []
@@ -509,10 +523,10 @@ network.on("doubleClick", params => {{
 </body>
 </html>"""
 
-        path = os.path.join(self.output_dir, "graph.html")
-        with open(path, "w", encoding="utf-8") as f:
-            f.write(html)
-        return path
+        if interactive:
+            html = html.replace("</body>", _console_panel_html(self.clusters, self.schemas) + "\n</body>")
+
+        return html
 
     def write_report(self) -> str:
         """Write a human-readable Markdown summary of the final schemas."""
@@ -539,6 +553,389 @@ network.on("doubleClick", params => {{
         with open(path, "w", encoding="utf-8") as f:
             f.write(report)
         return path
+
+
+# ---------------------------------------------------------------------------
+# Journalist Console -- injected into graph.html by render_graph_html() when
+# interactive=True. Adds a live fixer, critic bot, coverage check, and an
+# advocate/skeptic debate chat, all calling the JSON API `schemex serve`
+# exposes (see server.py). Kept out of the static `schemex run` output so
+# that graph.html stays a plain, dependency-free file unless you're serving.
+# ---------------------------------------------------------------------------
+
+_CONSOLE_MARKER = "/* SCHEMEX_CONSOLE_PANEL */"
+
+
+def _console_panel_html(clusters: List[Cluster], schemas: Dict[str, "Schema"]) -> str:
+    clusters_json = json.dumps(
+        [{"id": c.id, "name": c.name} for c in clusters], indent=2
+    )
+    components_by_cluster = {
+        cid: [comp.name for comp in schema.components]
+        for cid, schema in schemas.items()
+    }
+    components_by_cluster_json = json.dumps(components_by_cluster, indent=2)
+
+    return f"""
+<style>
+  .console-toggle-btn {{
+    margin-left: 12px;
+    background: #7F77DD;
+    color: #ffffff;
+    border: none;
+    border-radius: 6px;
+    padding: 5px 14px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+  }}
+  .console-toggle-btn:hover {{ background: #8f88e8; }}
+  .console-panel {{
+    position: fixed;
+    top: 0;
+    right: 0;
+    width: 420px;
+    height: 100vh;
+    background: #1a1a1c;
+    border-left: 1px solid #2c2c2a;
+    transform: translateX(100%);
+    transition: transform 0.2s ease;
+    z-index: 50;
+    display: flex;
+    flex-direction: column;
+    box-shadow: -8px 0 24px rgba(0,0,0,0.4);
+  }}
+  .console-panel.open {{ transform: translateX(0); }}
+  .console-header {{
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 18px;
+    border-bottom: 1px solid #2c2c2a;
+    font-size: 13px;
+    font-weight: 600;
+    color: #e8e6de;
+    flex-shrink: 0;
+  }}
+  .console-header button {{
+    background: none; border: none; color: #888780; font-size: 18px; cursor: pointer;
+  }}
+  .console-body {{ flex: 1; overflow-y: auto; padding: 16px 18px; }}
+  .console-row {{ margin-bottom: 12px; }}
+  .console-row label {{
+    display: block; font-size: 11px; font-weight: 600; letter-spacing: 0.06em;
+    text-transform: uppercase; color: #5F5E5A; margin-bottom: 6px;
+  }}
+  .console-row select, .console-row textarea, .chat-input-row input {{
+    width: 100%; background: #242423; border: 1px solid #2c2c2a; border-radius: 6px;
+    color: #e8e6de; font-size: 12.5px; padding: 8px 10px; font-family: inherit;
+  }}
+  .console-row textarea {{ min-height: 140px; resize: vertical; line-height: 1.5; }}
+  .console-actions {{ display: flex; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; }}
+  .console-actions button, .chat-input-row button {{
+    background: #2c2c2a; color: #c2c0b6; border: 1px solid #3a3a37; border-radius: 6px;
+    padding: 7px 12px; font-size: 12px; cursor: pointer;
+  }}
+  .console-actions button:hover:not(:disabled), .chat-input-row button:hover {{ background: #3a3a37; }}
+  .console-actions button:disabled {{ opacity: 0.4; cursor: not-allowed; }}
+  .console-status {{ font-size: 12px; color: #888780; margin-bottom: 10px; min-height: 16px; }}
+  .verdict {{ font-size: 13px; color: #e8e6de; margin-bottom: 10px; line-height: 1.5; }}
+  .scores {{ display: flex; gap: 14px; font-size: 12px; color: #888780; margin-bottom: 12px; }}
+  .scores b {{ color: #e8e6de; }}
+  .issue-group {{ margin-bottom: 14px; }}
+  .issue-group-title {{
+    font-size: 10px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
+    color: #5F5E5A; margin-bottom: 6px;
+  }}
+  .issue-row {{
+    border-left: 3px solid #888780; background: #242423; border-radius: 0 6px 6px 0;
+    padding: 8px 10px; margin-bottom: 6px; font-size: 12px; line-height: 1.5;
+  }}
+  .issue-head {{ color: #e8e6de; font-weight: 500; margin-bottom: 3px; }}
+  .issue-sev {{ font-weight: 700; text-transform: uppercase; font-size: 10px; margin-right: 4px; }}
+  .issue-quote {{ font-style: italic; color: #b4b2a9; margin: 3px 0; }}
+  .issue-detail {{ color: #888780; }}
+  .console-divider {{ border-top: 1px solid #2c2c2a; margin: 16px 0; }}
+  .chat-log {{ max-height: 260px; overflow-y: auto; margin-bottom: 10px; }}
+  .chat-question {{ font-size: 12.5px; color: #e8e6de; font-weight: 600; margin: 10px 0 6px; }}
+  .chat-answer {{
+    border-left: 3px solid #888780; background: #242423; border-radius: 0 6px 6px 0;
+    padding: 7px 10px; margin-bottom: 6px; font-size: 12px; line-height: 1.5; color: #b4b2a9;
+  }}
+  .chat-answer b {{ color: #e8e6de; display: block; font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 3px; }}
+  .chat-input-row {{ display: flex; gap: 8px; }}
+  .chat-input-row input {{ flex: 1; }}
+</style>
+
+<div class="console-panel" id="consolePanel">
+  <div class="console-header">
+    <span>Journalist Console</span>
+    <button id="consoleClose" aria-label="Close">&times;</button>
+  </div>
+  <div class="console-body">
+    <div class="console-row">
+      <label>Cluster</label>
+      <select id="clusterSelect"><option value="">Auto-detect from draft</option></select>
+    </div>
+    <div class="console-row">
+      <label>Draft</label>
+      <textarea id="draftText" placeholder="Paste your draft here..."></textarea>
+    </div>
+    <div class="console-actions">
+      <button id="btnCritique">Run Critique</button>
+      <button id="btnCoverage">Check Coverage</button>
+      <button id="btnFix" disabled>Apply Fixer</button>
+    </div>
+    <div id="consoleStatus" class="console-status"></div>
+    <div id="consoleResults"></div>
+    <div class="console-divider"></div>
+    <div class="console-row">
+      <label>Journalist Chat — Advocate vs. Skeptic</label>
+    </div>
+    <div id="chatLog" class="chat-log"></div>
+    <div class="chat-input-row">
+      <input id="chatInput" type="text" placeholder="Ask a question about your draft...">
+      <button id="btnChatSend">Ask</button>
+    </div>
+  </div>
+</div>
+
+<script>
+{_CONSOLE_MARKER}
+(function () {{
+  const CLUSTERS = {clusters_json};
+  const COMPONENTS_BY_CLUSTER = {components_by_cluster_json};
+  const SEV_COLOR = {{ critical: "#E0584A", major: "#EF9F27", minor: "#7F77DD" }};
+  const COV_COLOR = {{ present: "#1D9E75", weak: "#EF9F27", missing: "#E0584A" }};
+
+  let lastCritique = null;
+  let lastClusterId = null;
+  let chatHistory = [];
+
+  function init() {{
+    const header = document.querySelector("header");
+    const btn = document.createElement("button");
+    btn.id = "consoleToggle";
+    btn.textContent = "Console";
+    btn.className = "console-toggle-btn";
+    header.appendChild(btn);
+
+    const panel = document.getElementById("consolePanel");
+    btn.addEventListener("click", () => panel.classList.toggle("open"));
+    document.getElementById("consoleClose").addEventListener("click", () => panel.classList.remove("open"));
+
+    const select = document.getElementById("clusterSelect");
+    CLUSTERS.forEach(c => {{
+      const opt = document.createElement("option");
+      opt.value = c.id;
+      opt.textContent = c.name;
+      select.appendChild(opt);
+    }});
+
+    document.getElementById("btnCritique").addEventListener("click", runCritique);
+    document.getElementById("btnCoverage").addEventListener("click", runCoverage);
+    document.getElementById("btnFix").addEventListener("click", runFix);
+    document.getElementById("btnChatSend").addEventListener("click", sendChat);
+    document.getElementById("chatInput").addEventListener("keydown", e => {{
+      if (e.key === "Enter") sendChat();
+    }});
+  }}
+
+  function setStatus(msg, isError) {{
+    const el = document.getElementById("consoleStatus");
+    el.textContent = msg || "";
+    el.style.color = isError ? "#E0584A" : "#888780";
+  }}
+
+  function currentDraft() {{ return document.getElementById("draftText").value.trim(); }}
+  function currentClusterId() {{ return document.getElementById("clusterSelect").value || null; }}
+
+  async function postJSON(url, body) {{
+    const res = await fetch(url, {{
+      method: "POST",
+      headers: {{ "Content-Type": "application/json" }},
+      body: JSON.stringify(body),
+    }});
+    const payload = await res.json();
+    if (!res.ok) throw new Error(payload.error || ("HTTP " + res.status));
+    return payload;
+  }}
+
+  function paintComponentColors(colorByLabel) {{
+    // `data`/`network` are declared with const in the graph script above; if
+    // vis.js failed to load (e.g. CDN blocked), that declaration throws and
+    // leaves them in the temporal dead zone -- referencing them anywhere,
+    // even in a typeof check, then throws ReferenceError. Swallow that here
+    // so a blocked CDN degrades to "no live repaint" instead of surfacing a
+    // confusing JS error in the console status line.
+    try {{
+      if (typeof network === "undefined" || typeof data === "undefined") return;
+    }} catch (e) {{
+      return;
+    }}
+    const updates = [];
+    data.nodes.forEach(node => {{
+      if (node.group !== "component") return;
+      const color = colorByLabel[node.label];
+      if (!color) return;
+      updates.push(Object.assign({{}}, data.nodes.get(node.id), {{
+        color: {{
+          background: color, border: color,
+          highlight: {{ background: color, border: "#ffffff" }},
+          hover: {{ background: color, border: "#ffffff" }},
+        }},
+      }}));
+    }});
+    if (updates.length) {{
+      data.nodes.remove(updates.map(u => u.id));
+      data.nodes.add(updates);
+      network.redraw();
+    }}
+  }}
+
+  function issueListHtml(title, issues) {{
+    if (!issues || !issues.length) return "";
+    const rows = issues.map(i => `
+      <div class="issue-row" style="border-left-color:${{SEV_COLOR[i.severity] || '#888780'}}">
+        <div class="issue-head"><span class="issue-sev" style="color:${{SEV_COLOR[i.severity] || '#888780'}}">${{i.severity}}</span>${{i.issue}}</div>
+        ${{(i.quote || i.claim) ? `<div class="issue-quote">"${{i.quote || i.claim}}"</div>` : ""}}
+        <div class="issue-detail">${{i.detail}}</div>
+      </div>`).join("");
+    return `<div class="issue-group"><div class="issue-group-title">${{title}}</div>${{rows}}</div>`;
+  }}
+
+  async function runCritique() {{
+    const draft = currentDraft();
+    if (!draft) {{ setStatus("Paste a draft first.", true); return; }}
+    setStatus("Running critique...");
+    try {{
+      const result = await postJSON("/api/critique", {{ draft_text: draft, cluster_id: currentClusterId() }});
+      lastCritique = result.critique;
+      lastClusterId = result.cluster_id;
+      document.getElementById("btnFix").disabled = false;
+      setStatus(`Matched cluster: ${{result.cluster_name}}`);
+
+      const c = lastCritique;
+      document.getElementById("consoleResults").innerHTML = `
+        <div class="verdict">${{c.verdict}}</div>
+        <div class="scores">
+          <span>Structure <b>${{c.score.structure}}</b>/10</span>
+          <span>Argument <b>${{c.score.argument}}</b>/10</span>
+          <span>Prose <b>${{c.score.prose}}</b>/10</span>
+        </div>
+        ${{issueListHtml("Structural issues", c.structural_issues)}}
+        ${{issueListHtml("Argumentative issues", c.argumentative_issues)}}
+        ${{issueListHtml("Prose issues", c.prose_issues)}}
+        ${{(c.strengths && c.strengths.length) ? `<div class="issue-group"><div class="issue-group-title">Strengths</div>${{c.strengths.map(s => `<div class="issue-row" style="border-left-color:#1D9E75">${{s}}</div>`).join("")}}</div>` : ""}}
+      `;
+
+      // Colour graph nodes by the worst issue severity that mentions them --
+      // same heuristic `schemex critique` uses when injecting into a static graph.html.
+      // Scoped to the matched cluster's components, embedded at render time
+      // (COMPONENTS_BY_CLUSTER) rather than read off the live vis.js dataset,
+      // so this still works even if the vis.js CDN failed to load.
+      const allIssues = [].concat(c.structural_issues, c.argumentative_issues, c.prose_issues);
+      const compNames = COMPONENTS_BY_CLUSTER[result.cluster_id] || [];
+      const rank = {{ critical: 3, major: 2, minor: 1 }};
+      const worst = {{}};
+      allIssues.forEach(issue => {{
+        const text = (issue.issue + " " + issue.detail + " " + (issue.quote || "") + " " + (issue.claim || "")).toLowerCase();
+        compNames.forEach(name => {{
+          if (text.includes(name.toLowerCase()) && (!worst[name] || rank[issue.severity] > rank[worst[name]])) {{
+            worst[name] = issue.severity;
+          }}
+        }});
+      }});
+      const colorMap = {{}};
+      compNames.forEach(name => {{ colorMap[name] = worst[name] ? SEV_COLOR[worst[name]] : "#1D9E75"; }});
+      paintComponentColors(colorMap);
+    }} catch (e) {{
+      setStatus("Critique failed: " + e.message, true);
+    }}
+  }}
+
+  async function runCoverage() {{
+    const draft = currentDraft();
+    if (!draft) {{ setStatus("Paste a draft first.", true); return; }}
+    setStatus("Checking coverage...");
+    try {{
+      const result = await postJSON("/api/coverage", {{ draft_text: draft, cluster_id: currentClusterId() }});
+      lastClusterId = result.cluster_id;
+      setStatus(`Matched cluster: ${{result.cluster_name}}`);
+
+      const r = result.coverage;
+      document.getElementById("consoleResults").innerHTML = `
+        ${{r.overall_summary ? `<div class="verdict">${{r.overall_summary}}</div>` : ""}}
+        ${{r.items.map(item => `
+          <div class="issue-row" style="border-left-color:${{COV_COLOR[item.status] || '#888780'}}">
+            <div class="issue-head"><span class="issue-sev" style="color:${{COV_COLOR[item.status] || '#888780'}}">${{item.status}}</span>${{item.component_name}}</div>
+            <div class="issue-detail">${{item.explanation}}</div>
+            ${{item.suggestion ? `<div class="issue-quote">${{item.suggestion}}</div>` : ""}}
+          </div>`).join("")}}
+      `;
+      const colorMap = {{}};
+      r.items.forEach(item => {{ colorMap[item.component_name] = COV_COLOR[item.status] || "#888780"; }});
+      paintComponentColors(colorMap);
+    }} catch (e) {{
+      setStatus("Coverage check failed: " + e.message, true);
+    }}
+  }}
+
+  async function runFix() {{
+    if (!lastCritique) {{ setStatus("Run a critique first.", true); return; }}
+    setStatus("Rewriting draft...");
+    try {{
+      const result = await postJSON("/api/fix", {{ draft_text: currentDraft(), critique: lastCritique }});
+      document.getElementById("draftText").value = result.fixed_draft;
+      document.getElementById("btnFix").disabled = true;
+      lastCritique = null;
+      setStatus("Draft rewritten. Re-run critique to verify.");
+    }} catch (e) {{
+      setStatus("Fixer failed: " + e.message, true);
+    }}
+  }}
+
+  function renderChat() {{
+    const log = document.getElementById("chatLog");
+    log.innerHTML = chatHistory.map(turn => `
+      <div class="chat-question">${{turn.question}}</div>
+      <div class="chat-answer" style="border-left-color:#1D9E75"><b>Advocate</b>${{turn.advocate}}</div>
+      <div class="chat-answer" style="border-left-color:#E0584A"><b>Skeptic</b>${{turn.skeptic}}</div>
+    `).join("");
+    log.scrollTop = log.scrollHeight;
+  }}
+
+  async function sendChat() {{
+    const input = document.getElementById("chatInput");
+    const question = input.value.trim();
+    const draft = currentDraft();
+    if (!question) return;
+    if (!draft) {{ setStatus("Paste a draft first.", true); return; }}
+    input.value = "";
+    setStatus("Asking the debate bot...");
+    try {{
+      const result = await postJSON("/api/chat", {{
+        draft_text: draft,
+        cluster_id: currentClusterId() || lastClusterId,
+        question: question,
+        history: chatHistory,
+      }});
+      lastClusterId = result.cluster_id;
+      chatHistory.push({{ question: question, advocate: result.advocate, skeptic: result.skeptic }});
+      renderChat();
+      setStatus("");
+    }} catch (e) {{
+      setStatus("Chat failed: " + e.message, true);
+    }}
+  }}
+
+  if (document.readyState === "loading") {{
+    document.addEventListener("DOMContentLoaded", init);
+  }} else {{
+    init();
+  }}
+}})();
+</script>"""
 
 
 # ---------------------------------------------------------------------------

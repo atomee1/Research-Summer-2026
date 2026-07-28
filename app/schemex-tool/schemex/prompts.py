@@ -387,3 +387,60 @@ def build_fixer_prompt(
         argumentative_block=fmt_issues(argumentative_issues),
         prose_block=fmt_issues(prose_issues),
     )
+
+
+# ---------------------------------------------------------------------------
+# Debate bot prompts (advocate vs. skeptic journalist chat)
+# ---------------------------------------------------------------------------
+
+DEBATE_SYSTEM = """You are running a two-sided editorial debate to help a \
+journalist stress-test their draft against the structural schema for its \
+cluster. Given the reporter's question, produce TWO opposing answers, both \
+grounded in the actual draft text and schema: an ADVOCATE who defends the \
+draft's current framing, sourcing, and choices, and a SKEPTIC who \
+challenges them and raises the doubts a hostile editor, a fact-checker, or \
+an opposing source would raise. The two sides must disagree in \
+interpretation and emphasis, not by inventing facts that aren't in the \
+draft -- if the draft simply doesn't say something, both sides should say \
+so rather than making it up."""
+
+DEBATE_USER_TEMPLATE = """SCHEMA (cluster: "{cluster_name}"):
+{schema_block}
+
+DRAFT:
+---
+{draft_text}
+---
+
+PRIOR CONVERSATION:{history_block}
+
+REPORTER'S QUESTION: {question}
+
+Return a JSON object shaped like:
+{{
+  "advocate": "answer defending the draft's framing and choices, grounded in the draft",
+  "skeptic": "answer challenging the draft's framing and choices, grounded in the draft"
+}}"""
+
+
+def build_debate_prompt(
+    schema: "Schema",
+    draft_text: str,
+    cluster_name: str,
+    history: list,
+    question: str,
+) -> str:
+    history_block = ""
+    for turn in history:
+        history_block += (
+            f"\nREPORTER: {turn['question']}\n"
+            f"ADVOCATE: {turn['advocate']}\n"
+            f"SKEPTIC: {turn['skeptic']}\n"
+        )
+    return DEBATE_USER_TEMPLATE.format(
+        cluster_name=cluster_name,
+        schema_block=schema.as_prompt_block(),
+        draft_text=draft_text.strip(),
+        history_block=history_block if history_block else " (none yet)",
+        question=question,
+    )
