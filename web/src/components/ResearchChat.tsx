@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { CausalTree } from "@/lib/schema";
 
 type ChatMessage = {
@@ -12,7 +12,42 @@ type Props = {
   title: string;
   articleText: string;
   causalTree: CausalTree;
+  draftPrompt?: string | null;
+  onDraftPromptConsumed?: () => void;
 };
+
+const QUICK_ACTIONS = [
+  {
+    label: "Source plan",
+    prompt:
+      "Create a source plan for investigating the most important reporting gaps in this causal tree. Group sources by officials, affected people, experts, documents, and data.",
+  },
+  {
+    label: "Interview questions",
+    prompt:
+      "Generate interview questions for the key sources needed to verify the weakest or most important causal links in this story.",
+  },
+  {
+    label: "Documents/data",
+    prompt:
+      "What documents, public records, datasets, or evidence should a journalist look for to verify the causal claims in this article?",
+  },
+  {
+    label: "Prioritize gaps",
+    prompt:
+      "Prioritize the reporting gaps in this causal tree. Which should a journalist investigate first, and why?",
+  },
+  {
+    label: "Challenge framing",
+    prompt:
+      "Challenge the article's dominant causal explanation. What alternative explanations or accountability angles might be underexplored?",
+  },
+  {
+    label: "Research checklist",
+    prompt:
+      "Turn the reporting gaps and weak causal links into a concrete reporting checklist.",
+  },
+];
 
 function collectSuggestedQuestions(tree: CausalTree) {
   const questions = new Set<string>();
@@ -34,7 +69,7 @@ function collectSuggestedQuestions(tree: CausalTree) {
   return Array.from(questions).slice(0, 6);
 }
 
-export function ResearchChat({ title, articleText, causalTree }: Props) {
+export function ResearchChat({title, articleText, causalTree, draftPrompt, onDraftPromptConsumed, }: Props) {
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       role: "assistant",
@@ -45,6 +80,19 @@ export function ResearchChat({ title, articleText, causalTree }: Props) {
 
   const [input, setInput] = useState("");
   const [isSending, setIsSending] = useState(false);
+
+  const [chatMode, setChatMode] = useState<
+    "reporting_plan" | "source_strategy" | "interview_prep" | "framing_critique"
+  >("reporting_plan");
+
+  useEffect(() => {
+    if (!draftPrompt) {
+      return;
+    }
+
+    setInput(draftPrompt);
+    onDraftPromptConsumed?.();
+  }, [draftPrompt, onDraftPromptConsumed]);
 
   const suggestedQuestions = useMemo(
     () => collectSuggestedQuestions(causalTree),
@@ -77,11 +125,12 @@ export function ResearchChat({ title, articleText, causalTree }: Props) {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          title,
-          articleText,
-          causalTree,
-          messages: nextMessages,
-        }),
+        title,
+        articleText,
+        causalTree,
+        messages: nextMessages,
+        chatMode,
+      }),
       });
 
       const text = await response.text();
@@ -132,8 +181,54 @@ export function ResearchChat({ title, articleText, causalTree }: Props) {
         <p className="mt-2 text-sm text-slate-300">
           Ask the assistant how to verify weak causal links, find sources, design
           interview questions, or fill gaps in the causal account. It uses the
-          article and causal tree as context; it does not browse the web.
+          article and causal tree as context; it does not browse the web. It does
+          not verify facts unless you provide evidence or enable web-research mode.
+          Treat its output as a research plan, not as confirmed information.
         </p>
+      </div>
+
+      <div className="mt-5">
+        <label className="block text-sm font-medium text-slate-300">
+          Assistant mode
+        </label>
+
+        <select
+          className="mt-2 w-full rounded-lg border border-slate-700 bg-slate-950 p-3 text-sm text-slate-100"
+          value={chatMode}
+          onChange={(event) =>
+            setChatMode(
+              event.target.value as
+                | "reporting_plan"
+                | "source_strategy"
+                | "interview_prep"
+                | "framing_critique"
+            )
+          }
+        >
+          <option value="reporting_plan">Reporting plan</option>
+          <option value="source_strategy">Source strategy</option>
+          <option value="interview_prep">Interview prep</option>
+          <option value="framing_critique">Framing critique</option>
+        </select>
+      </div>
+
+      <div className="mt-5">
+        <h4 className="text-sm font-semibold text-slate-200">
+          Quick research actions
+        </h4>
+
+        <div className="mt-2 flex flex-wrap gap-2">
+          {QUICK_ACTIONS.map((action) => (
+            <button
+              key={action.label}
+              onClick={() => sendMessage(action.prompt)}
+              disabled={isSending}
+              className="rounded-full border border-emerald-800 bg-emerald-950 px-3 py-2 text-left text-xs text-emerald-100 hover:bg-emerald-900 disabled:opacity-50"
+            >
+              {action.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {suggestedQuestions.length > 0 && (

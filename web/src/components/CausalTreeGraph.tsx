@@ -27,6 +27,7 @@ type CausalNodeData = {
 
 type Props = {
   tree: CausalTree;
+  onAskAssistant?: (prompt: string) => void;
 };
 
 function supportColor(label: CausalEdge["support_label"]) {
@@ -243,7 +244,7 @@ function CausalGraphLegend() {
   );
 }
 
-export function CausalTreeGraph({ tree }: Props) {
+export function CausalTreeGraph({ tree, onAskAssistant }: Props) {
   const { nodes, edges } = useMemo(() => treeToFlow(tree), [tree]);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(
     tree.root_event_id
@@ -334,6 +335,7 @@ export function CausalTreeGraph({ tree }: Props) {
                 <h5 className="text-sm font-semibold text-purple-100">
                   Why this score?
                 </h5>
+
                 <p className="mt-1 text-sm text-purple-100">
                   {selectedEdge.rationale}
                 </p>
@@ -351,6 +353,30 @@ export function CausalTreeGraph({ tree }: Props) {
                     ))}
                   </ul>
                 </div>
+              )}
+
+              {onAskAssistant && (
+                <button
+                  onClick={() =>
+                    onAskAssistant(
+                      `Help me investigate this causal link:
+
+        Cause: ${nodeById.get(selectedEdge.from)?.label ?? selectedEdge.from}
+        Effect: ${nodeById.get(selectedEdge.to)?.label ?? selectedEdge.to}
+        Relationship: ${selectedEdge.relationship}
+        Article support: ${selectedEdge.support_label} (${Math.round(
+                        selectedEdge.support_score * 100
+                      )}%)
+        Evidence status: ${selectedEdge.evidence_status}
+        Rationale: ${selectedEdge.rationale}
+
+        Please explain what the article currently supports, what remains unknown, what sources or documents I should seek, and what interview questions would help verify this link.`
+                    )
+                  }
+                  className="mt-4 w-full rounded-lg bg-emerald-500 px-3 py-2 text-sm font-medium text-white hover:bg-emerald-400"
+                >
+                  Ask assistant about this link
+                </button>
               )}
             </div>
           )}
@@ -411,33 +437,23 @@ export function CausalTreeGraph({ tree }: Props) {
                           <p className="font-medium text-slate-100">
                             {cause?.label ?? edge.from}
                           </p>
+
                           <p className="mt-1 text-slate-300">
                             {edge.relationship}
                           </p>
+
                           <p className="mt-1 text-xs text-slate-400">
                             Support: {edge.support_label} ·{" "}
                             {Math.round(edge.support_score * 100)}%
                           </p>
-                          <p className="mt-1 text-xs text-slate-400">
-                            {edge.rationale}
-                          </p>
+
                           <p className="mt-1 text-xs text-slate-400">
                             Evidence status: {edge.evidence_status.replaceAll("_", " ")}
                           </p>
 
-                          {edge.reporting_questions.length > 0 && (
-                            <div className="mt-2 rounded bg-slate-900 p-2">
-                              <p className="text-xs font-semibold text-slate-300">
-                                Reporting questions
-                              </p>
-
-                              <ul className="mt-1 list-disc space-y-1 pl-4 text-xs text-slate-400">
-                                {edge.reporting_questions.map((question, index) => (
-                                  <li key={index}>{question}</li>
-                                ))}
-                              </ul>
-                            </div>
-                          )}
+                          <p className="mt-1 text-xs text-slate-400">
+                            {edge.rationale}
+                          </p>
                         </div>
                       );
                     })}
@@ -463,9 +479,11 @@ export function CausalTreeGraph({ tree }: Props) {
                           <p className="font-medium text-slate-100">
                             {effect?.label ?? edge.to}
                           </p>
+
                           <p className="mt-1 text-slate-300">
                             {edge.relationship}
                           </p>
+
                           <p className="mt-1 text-xs text-slate-400">
                             Support: {edge.support_label} ·{" "}
                             {Math.round(edge.support_score * 100)}%
@@ -492,7 +510,9 @@ export function CausalTreeGraph({ tree }: Props) {
               )}
             </>
           ) : (
-            <p className="text-sm text-slate-300">Select a node to inspect it.</p>
+            <p className="text-sm text-slate-300">
+              Select a node to inspect it.
+            </p>
           )}
         </aside>
       </div>

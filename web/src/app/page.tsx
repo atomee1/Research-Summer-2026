@@ -55,6 +55,8 @@ export default function Home() {
   const [causalTree, setCausalTree] = useState<CausalTree | null>(null);
   const [causalLoading, setCausalLoading] = useState(false);
 
+  const [chatDraftPrompt, setChatDraftPrompt] = useState<string | null>(null);
+
   function loadExample(exampleId: string) {
     setSelectedExampleId(exampleId);
 
@@ -247,12 +249,17 @@ export default function Home() {
               />
             </div>
 
-            <CausalTreeGraph tree={causalTree} />
+            <CausalTreeGraph
+              tree={causalTree}
+              onAskAssistant={(prompt) => setChatDraftPrompt(prompt)}
+            />
 
             <ResearchChat
               title={title}
               articleText={articleText}
               causalTree={causalTree}
+              draftPrompt={chatDraftPrompt}
+              onDraftPromptConsumed={() => setChatDraftPrompt(null)}
             />
           </>
         )}
