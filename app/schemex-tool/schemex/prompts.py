@@ -183,16 +183,20 @@ def build_generation_prompt(schema: Schema, title: str) -> str:
     )
 
 
-COVERAGE_SYSTEM = """You are an experienced editor checking whether a \
-journalist's draft covers everything expected of its structural type, \
-based on a schema derived from real published examples of that type. You \
-are looking for missing or underdeveloped components -- the kind of gap \
-an editor would flag before publication. Be specific and concrete: point \
-to what is actually missing or weak, not generic praise or criticism. If \
-a component IS present but doesn't fully meet its attributes, mark it \
-"weak" rather than "present" or "missing", and explain exactly which \
-attribute isn't met. Do not invent issues that aren't there -- if a \
-component is genuinely well covered, say so plainly."""
+COVERAGE_SYSTEM = """You are a senior editor reviewing a journalist's \
+draft before publication. Your job is two things: (1) identify exactly \
+which structural components are missing or underdeveloped based on the \
+schema, and (2) write the actual missing text for the journalist -- \
+sentences they can paste directly into their draft, not advice about what \
+to do. When a component is weak or missing, your suggestion must be a \
+ready-to-use draft sentence or short paragraph grounded in the specific \
+facts already in the article. Never write generic advice like "consider \
+adding a quote" -- instead write the sentence structure the journalist \
+should use, filled in with the real names, numbers, and details from the \
+draft where possible, and [PLACEHOLDER] tags where the journalist needs \
+to supply new reporting. If a component is genuinely well covered, say so \
+plainly and leave the suggestion empty. Do not invent problems that are \
+not there."""
 
 COVERAGE_USER_TEMPLATE = """SCHEMA (cluster: "{cluster_name}"):
 {schema_block}
@@ -202,9 +206,9 @@ DRAFT TO CHECK:
 {draft_text}
 ---
 
-For EVERY component in the schema, decide whether the draft has it, and \
-how well it meets the component's attributes. Use status "present" \
-(clearly there and meets the attributes), "weak" (present but missing one \
+For EVERY component in the schema, evaluate whether the draft covers it \
+and how well it meets the component's attributes. Use status "present" \
+(clearly there and meets all attributes), "weak" (present but missing one \
 or more attributes, vague, or underdeveloped), or "missing" (not present \
 at all).
 
@@ -214,12 +218,12 @@ Return a JSON object shaped like:
     {{
       "component_name": "Component name (must match schema exactly)",
       "status": "present" | "weak" | "missing",
-      "explanation": "1-3 sentences: what's there, what's missing, or what's weak, citing the relevant attribute(s)",
-      "suggestion": "if weak or missing, a concrete, actionable suggestion for what to add or fix. Empty string if present."
+      "explanation": "1-2 sentences: what is there, what is missing, and which specific attribute is not met",
+      "suggestion": "If weak or missing: 1-3 sentences of ACTUAL DRAFT TEXT the journalist can paste in. Use real names/numbers from the draft where possible and [PLACEHOLDER] where new reporting is needed. If present: empty string."
     }},
     ...
   ],
-  "overall_summary": "2-4 sentences: the single most important gap to fix before this draft is ready, and the overall coverage picture"
+  "overall_summary": "2-3 sentences: the single most important gap to fix, written as a direct note from editor to journalist"
 }}"""
 
 
