@@ -98,7 +98,16 @@ class RunState:
         self.clusters: List[Cluster] = []
         self.schemas: Dict[str, Schema] = {}  # cluster_id -> latest Schema
         self.refinement_history: List[RefinementRound] = []
+        self.example_word_counts: Dict[str, int] = {}  # example id -> word count
         os.makedirs(output_dir, exist_ok=True)
+
+    def record_example_word_counts(self, examples: List[Example]) -> None:
+        """Capture each example's word count at `schemex run` time, since the
+        example text itself isn't persisted -- this is what lets graph.html's
+        node hover show node-count-vs-word-count stats later, from `schemex
+        serve`, without needing the original input file around.
+        """
+        self.example_word_counts = {ex.id: len(ex.text.split()) for ex in examples}
 
     def save(self) -> None:
         path = os.path.join(self.output_dir, "state.json")
@@ -106,6 +115,7 @@ class RunState:
             "clusters": [c.to_dict() for c in self.clusters],
             "schemas": {cid: s.to_dict() for cid, s in self.schemas.items()},
             "refinement_history": [r.to_dict() for r in self.refinement_history],
+            "example_word_counts": self.example_word_counts,
         }
         with open(path, "w", encoding="utf-8") as f:
             json.dump(payload, f, indent=2)
@@ -122,6 +132,7 @@ class RunState:
         state.schemas = {
             cid: Schema.from_dict(s) for cid, s in payload.get("schemas", {}).items()
         }
+        state.example_word_counts = payload.get("example_word_counts", {})
         # Refinement history is informational only; not reconstructed into
         # objects on load since it's never mutated, only appended to and
         # re-saved within a single run.
@@ -168,6 +179,27 @@ class RunState:
                 if isinstance(r, dict) and r.get("cluster_id") == cid
             )
 
+            # Node-count-vs-word-count data for this cluster's hover tooltip --
+            # each cluster is one (schema node count, member word count) sample
+            # point for testing whether the two correlate across stories.
+            node_count = len(schema.components) if schema else 0
+            member_word_counts = [
+                self.example_word_counts[mid] for mid in cluster.member_ids
+                if mid in self.example_word_counts
+            ]
+            if member_word_counts:
+                avg_words = round(sum(member_word_counts) / len(member_word_counts))
+                cluster_title = (
+                    f"{node_count} schema node{'s' if node_count != 1 else ''} · "
+                    f"{len(member_word_counts)} of {len(cluster.member_ids)} stories with word counts · "
+                    f"avg {avg_words:,} words (range {min(member_word_counts):,}–{max(member_word_counts):,})"
+                )
+            else:
+                cluster_title = (
+                    f"{node_count} schema node{'s' if node_count != 1 else ''} · "
+                    "word counts unavailable for this run -- re-run `schemex run` to capture them"
+                )
+
             nodes.append({
                 "id": cid,
                 "label": cluster.name,
@@ -176,6 +208,7 @@ class RunState:
                 "color": CLUSTER_COLOR,
                 "font": {"size": 13, "color": "#ffffff", "bold": True},
                 "shape": "dot",
+                "title": cluster_title,
             })
             node_details[cid] = {
                 "type": "cluster",
@@ -192,6 +225,10 @@ class RunState:
                     comp_id = f"{cid}__comp_{i}"
                     is_refined = schema.version > 1
 
+                    comp_title = f'Node {i + 1} of {len(schema.components)} in "{cluster.name}"'
+                    if comp.attributes:
+                        comp_title += f" — {comp.attributes[0]}"
+
                     nodes.append({
                         "id": comp_id,
                         "label": comp.name,
@@ -200,6 +237,7 @@ class RunState:
                         "color": REFINED_COLOR if is_refined else COMPONENT_COLOR,
                         "font": {"size": 11, "color": "#ffffff"},
                         "shape": "dot",
+                        "title": comp_title,
                     })
                     node_details[comp_id] = {
                         "type": "component",
@@ -243,11 +281,20 @@ class RunState:
         )
         refined_count_total = len(self.refinement_history)
 
+        # Whole-graph node-count-vs-word-count numbers, for eyeballing the
+        # correlation at a glance (per-cluster detail is on node hover).
+        all_word_counts = list(self.example_word_counts.values())
+        word_stat_html = (
+            f'<div class="stat"><span>{sum(all_word_counts):,}</span> words '
+            f'across <span>{len(all_word_counts)}</span> stories</div>'
+            if all_word_counts else ""
+        )
+
         html = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>Schemex — graph visualisation</title>
+<title>Schemex — Story Atlas</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/vis/4.21.0/vis.min.js"></script>
 <link  href="https://cdnjs.cloudflare.com/ajax/libs/vis/4.21.0/vis.min.css" rel="stylesheet">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -406,14 +453,27 @@ class RunState:
     background: #1a1a1c;
     flex-shrink: 0;
   }}
+  .vis-tooltip {{
+    background: #1a1a1c !important;
+    border: 1px solid #2c2c2a !important;
+    color: #e8e6de !important;
+    font-family: "Inter", -apple-system, "Segoe UI", sans-serif !important;
+    font-size: 12.5px !important;
+    padding: 8px 12px !important;
+    border-radius: 8px !important;
+    max-width: 300px !important;
+    white-space: normal !important;
+    box-shadow: 0 6px 20px rgba(0,0,0,0.45) !important;
+  }}
 </style>
 </head>
 <body>
 <header>
-  <h1>Schemex — schema graph</h1>
+  <h1>Schemex — Story Atlas</h1>
   <div class="stat"><span>{cluster_count}</span> clusters</div>
   <div class="stat"><span>{component_count}</span> components</div>
   <div class="stat"><span>{refined_count_total}</span> refinement rounds</div>
+  {word_stat_html}
   <div class="legend">
     <span><span class="dot" style="background:#7F77DD"></span>Cluster</span>
     <span><span class="dot" style="background:#1D9E75"></span>Component</span>
