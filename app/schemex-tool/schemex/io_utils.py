@@ -992,3 +992,239 @@ def write_critique_report(report: "CritiqueReport", output_dir: str) -> tuple:
         f.write(html)
 
     return md_path, html_path
+
+
+# ---------------------------------------------------------------------------
+# Critique overlay injection into graph.html
+# ---------------------------------------------------------------------------
+
+_CRITIQUE_MARKER = "/* SCHEMEX_CRITIQUE_OVERLAY */"
+
+_CRITIQUE_SEV_COLOR = {
+    "critical": "#E0584A",
+    "major":    "#EF9F27",
+    "minor":    "#7F77DD",
+    "clean":    "#1D9E75",
+}
+_CRITIQUE_SEV_RANK = {"critical": 3, "major": 2, "minor": 1, "clean": 0}
+
+
+def inject_critique_into_graph(report: "CritiqueReport", graph_html_path: str) -> bool:
+    """Inject critique bot results into graph.html.
+
+    Each component node is coloured by the worst issue that mentions it:
+      red   = critical issue
+      amber = major issue
+      blue  = minor issue
+      green = no issues flagged (clean)
+
+    Clicking a node shows the verdict, scores, and any issues that reference
+    that component in the sidebar.
+    """
+    if not os.path.exists(graph_html_path):
+        return False
+
+    with open(graph_html_path, "r", encoding="utf-8") as f:
+        html = f.read()
+
+    # Remove any previous critique overlay
+    if _CRITIQUE_MARKER in html:
+        start        = html.index(_CRITIQUE_MARKER)
+        script_open  = html.rfind("<script>", 0, start)
+        script_close = html.find("</script>", start)
+        if script_open != -1 and script_close != -1:
+            html = html[:script_open] + html[script_close + len("</script>"):]
+
+    # Build per-component issue map
+    # key = component name (lower), value = {severity, issues[]}
+    comp_issues: dict = {}
+
+    all_issues = (
+        [("structural",     i) for i in report.structural_issues] +
+        [("argumentative",  i) for i in report.argumentative_issues] +
+        [("prose",          i) for i in report.prose_issues]
+    )
+
+    for category, issue in all_issues:
+        # Issues reference components by name in their detail text or issue label
+        # We do a broad scan: if the component name appears in the issue text, link it
+        text_to_scan = (issue.issue + " " + issue.detail + " " +
+                        issue.quote + " " + issue.claim).lower()
+        for comp_name in set(comp_issues.keys()):
+            if comp_name in text_to_scan:
+                existing = comp_issues[comp_name]
+                if (_CRITIQUE_SEV_RANK.get(issue.severity, 0) >
+                        _CRITIQUE_SEV_RANK.get(existing["worst_severity"], 0)):
+                    existing["worst_severity"] = issue.severity
+                existing["issues"].append({
+                    "category": category,
+                    "issue":    issue.issue,
+                    "detail":   issue.detail,
+                    "severity": issue.severity,
+                    "quote":    issue.quote or issue.claim,
+                })
+
+    # Also seed every component name from structural issues explicitly
+    for issue in report.structural_issues:
+        key = issue.issue.lower()
+        if key not in comp_issues:
+            comp_issues[key] = {"worst_severity": issue.severity, "issues": []}
+        comp_issues[key]["issues"].append({
+            "category": "structural",
+            "issue":    issue.issue,
+            "detail":   issue.detail,
+            "severity": issue.severity,
+            "quote":    issue.quote or issue.claim,
+        })
+        if (_CRITIQUE_SEV_RANK.get(issue.severity, 0) >
+                _CRITIQUE_SEV_RANK.get(comp_issues[key]["worst_severity"], 0)):
+            comp_issues[key]["worst_severity"] = issue.severity
+
+    comp_issues_json = json.dumps(comp_issues, indent=2)
+    score            = report.score
+    verdict          = report.verdict
+    draft_name       = os.path.basename(report.draft_path)
+    cluster_name     = report.cluster_name
+    total            = report.total_issues()
+    critical         = report.critical_count()
+
+    sev_colors_json = json.dumps(_CRITIQUE_SEV_COLOR)
+
+    overlay_script = f"""
+<script>
+{_CRITIQUE_MARKER}
+// Critique overlay — injected by `schemex critique`
+// Draft: {draft_name}  |  Schema: {cluster_name}
+(function () {{
+  const COMP_ISSUES   = {comp_issues_json};
+  const SEV_COLOR     = {sev_colors_json};
+  const VERDICT       = {json.dumps(verdict)};
+  const SCORE         = {json.dumps(score)};
+  const DRAFT_NAME    = {json.dumps(draft_name)};
+  const CLUSTER_NAME  = {json.dumps(cluster_name)};
+  const TOTAL_ISSUES  = {total};
+  const CRITICAL      = {critical};
+
+  const SEV_RANK = {{ critical: 3, major: 2, minor: 1, clean: 0 }};
+
+  function matchIssues(label) {{
+    const lower = label.toLowerCase();
+    let worst = "clean";
+    const matched = [];
+    for (const [key, data] of Object.entries(COMP_ISSUES)) {{
+      if (lower.includes(key) || key.includes(lower.slice(0, 8))) {{
+        if ((SEV_RANK[data.worst_severity] || 0) > (SEV_RANK[worst] || 0)) {{
+          worst = data.worst_severity;
+        }}
+        matched.push(...data.issues);
+      }}
+    }}
+    return {{ worst, issues: matched }};
+  }}
+
+  function buildUpdates() {{
+    const updates = [];
+    data.nodes.forEach(function (node) {{
+      if (node.group !== "component") return;
+      const label  = node.label || "";
+      const result = matchIssues(label);
+      const color  = SEV_COLOR[result.worst] || SEV_COLOR.clean;
+      updates.push({{
+        id: node.id,
+        color: {{
+          background: color,
+          border:     color,
+          highlight:  {{ background: color, border: "#ffffff" }},
+          hover:      {{ background: color, border: "#ffffff" }},
+        }},
+      }});
+      if (typeof DETAILS !== "undefined" && DETAILS[node.id]) {{
+        DETAILS[node.id].critique = {{ worst: result.worst, issues: result.issues, color }};
+      }}
+    }});
+    return updates;
+  }}
+
+  function paintNodes() {{
+    const updates = buildUpdates();
+    if (updates.length === 0) return;
+    const ids       = updates.map(u => u.id);
+    const originals = ids.map(id => data.nodes.get(id));
+    data.nodes.remove(ids);
+    data.nodes.add(updates.map((u, i) => Object.assign({{}}, originals[i], u)));
+    network.redraw();
+  }}
+
+  function applyOverlay() {{
+    if (typeof data === "undefined" || typeof network === "undefined") {{
+      setTimeout(applyOverlay, 80);
+      return;
+    }}
+
+    paintNodes();
+    network.once("stabilized", function () {{ paintNodes(); }});
+
+    // Patch sidebar to show critique panel on click
+    const _orig = window._origRenderSidebar || window.renderSidebar;
+    window._origRenderSidebar = _orig;
+    window.renderSidebar = function (nodeId) {{
+      _orig(nodeId);
+      const d = DETAILS[nodeId];
+      if (!d || d.type !== "component" || !d.critique) return;
+      const crit  = d.critique;
+      const color = crit.color;
+      const sevLabel = {{ critical:"Critical", major:"Major", minor:"Minor", clean:"Clean" }};
+
+      const issueCards = (crit.issues || []).map(function(iss) {{
+        const c = SEV_COLOR[iss.severity] || "#888780";
+        const q = iss.quote
+          ? `<div style="margin:6px 0;padding:6px 10px;background:#0f0f10;border-left:2px solid ${{c}};font-size:11px;color:#888780;font-style:italic">${{iss.quote}}</div>`
+          : "";
+        return `<div style="margin-bottom:8px;padding:8px 10px;background:${{c}}18;border-radius:6px;border-left:2px solid ${{c}}">
+          <div style="display:flex;gap:6px;align-items:center;margin-bottom:4px">
+            <span style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:${{c}}">${{iss.severity}}</span>
+            <span style="font-size:12px;font-weight:600;color:#e8e6de">${{iss.issue}}</span>
+          </div>
+          ${{q}}
+          <div style="font-size:12px;line-height:1.5;color:#b4b2a9">${{iss.detail}}</div>
+        </div>`;
+      }}).join("");
+
+      const panel = document.createElement("div");
+      panel.style.cssText = `margin-top:14px;border-left:3px solid ${{color}};background:${{color}}18;border-radius:0 8px 8px 0;padding:12px 14px`;
+      panel.innerHTML = `
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+          <span style="font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:2px 8px;border-radius:20px;background:${{color}}33;color:${{color}}">${{sevLabel[crit.worst] || crit.worst}}</span>
+          <span style="font-size:11px;color:#888780">critic</span>
+        </div>
+        ${{issueCards || '<div style="font-size:12px;color:#1D9E75">No issues flagged for this component.</div>'}}`;
+      const sidebar = document.getElementById("sidebar");
+      if (sidebar) sidebar.appendChild(panel);
+    }};
+
+    // Update header legend to show critique summary
+    const legend = document.querySelector(".legend");
+    if (legend) {{
+      const scoreStr = `S:${{SCORE.structure||"?"}} A:${{SCORE.argument||"?"}} P:${{SCORE.prose||"?"}}`;
+      legend.innerHTML = `
+        <span style="font-size:11px;color:#5F5E5A;margin-right:2px">Critic:</span>
+        <span><span class="dot" style="background:#E0584A"></span>Critical</span>
+        <span><span class="dot" style="background:#EF9F27"></span>Major</span>
+        <span><span class="dot" style="background:#7F77DD"></span>Minor</span>
+        <span><span class="dot" style="background:#1D9E75"></span>Clean</span>
+        <span style="margin-left:8px;padding-left:8px;border-left:1px solid #2c2c2a;color:#EF9F27;font-size:11px;font-style:italic;max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${{VERDICT}}">${{VERDICT}}</span>
+        <span style="margin-left:8px;color:#5F5E5A;font-size:11px">${{scoreStr}}</span>`;
+    }}
+  }}
+
+  applyOverlay();
+}})();
+</script>"""
+
+    html = (html.replace("</body>", overlay_script + "\n</body>")
+            if "</body>" in html else html + overlay_script)
+
+    with open(graph_html_path, "w", encoding="utf-8") as f:
+        f.write(html)
+
+    return True

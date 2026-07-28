@@ -16,6 +16,7 @@ import sys
 from .io_utils import (
     RunState,
     inject_coverage_into_graph,
+    inject_critique_into_graph,
     load_examples,
     write_coverage_html,
     write_coverage_report,
@@ -290,8 +291,15 @@ def main(argv=None) -> int:
         output_dir = args.output or args.state
         md_path, html_path = write_critique_report(critique, output_dir)
 
+        graph_path    = os.path.join(output_dir, "graph.html")
+        graph_updated = inject_critique_into_graph(critique, graph_path)
+
         print(f"\nCritique report  -> {md_path}")
         print(f"Visual report    -> {html_path}")
+        if graph_updated:
+            print(f"Graph updated    -> {graph_path}  (nodes coloured by issue severity)")
+        else:
+            print("Note: graph.html not found — run `schemex run` first.")
         if critique.fixed_draft:
             print(f"Fixed draft included in both reports.")
         return 0
