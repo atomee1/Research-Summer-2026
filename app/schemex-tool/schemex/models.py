@@ -279,3 +279,61 @@ class CritiqueReport:
                       + self.argumentative_issues
                       + self.prose_issues)
         return sum(1 for i in all_issues if i.severity == "critical")
+
+
+@dataclass
+class CutSuggestion:
+    """One candidate cut from the cuts bot, ordered safest-first."""
+
+    quote: str        # exact text to remove, verbatim from the draft
+    reason: str
+    word_count: int = 0     # computed from `quote`, not trusted from the model
+    found_in_draft: bool = True   # False if `quote` doesn't literally appear in the draft
+
+    def to_dict(self) -> Dict[str, Any]:
+        return asdict(self)
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "CutSuggestion":
+        return cls(
+            quote=d.get("quote", ""),
+            reason=d.get("reason", ""),
+            word_count=d.get("word_count", 0),
+            found_in_draft=d.get("found_in_draft", True),
+        )
+
+
+@dataclass
+class CutsReport:
+    """Full output of the cuts bot: trim a draft down to a target word count."""
+
+    draft_path: str
+    cluster_name: str
+    target_words: int
+    current_words: int
+    over_by: int
+    suggestions: List[CutSuggestion]
+    notes: str = ""
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "draft_path": self.draft_path,
+            "cluster_name": self.cluster_name,
+            "target_words": self.target_words,
+            "current_words": self.current_words,
+            "over_by": self.over_by,
+            "suggestions": [s.to_dict() for s in self.suggestions],
+            "notes": self.notes,
+        }
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "CutsReport":
+        return cls(
+            draft_path=d.get("draft_path", ""),
+            cluster_name=d.get("cluster_name", ""),
+            target_words=d.get("target_words", 0),
+            current_words=d.get("current_words", 0),
+            over_by=d.get("over_by", 0),
+            suggestions=[CutSuggestion.from_dict(s) for s in d.get("suggestions", [])],
+            notes=d.get("notes", ""),
+        )

@@ -423,6 +423,67 @@ Return a JSON object shaped like:
 }}"""
 
 
+# ---------------------------------------------------------------------------
+# Cuts bot prompts (trim a draft to a word limit)
+# ---------------------------------------------------------------------------
+
+CUTS_SYSTEM = """You are a tight, ruthless copy editor helping a journalist \
+cut their draft down to a strict word limit without losing the story's \
+substance. Identify specific sentences, clauses, or phrases that can be \
+removed with the least damage to the story. Prioritize, in this order: \
+redundant restatements of a point already made, hedging or throat-clearing \
+that adds no information, adjectives/adverbs that don't carry facts, \
+background the reader doesn't strictly need, and secondary examples once a \
+primary one already makes the point. NEVER suggest cutting a direct quote, \
+a specific number or piece of data, a named source, or anything that is \
+part of a schema component the draft needs to keep. Quote each cut EXACTLY \
+as it appears in the draft, verbatim, so it can be located and removed \
+automatically -- do not paraphrase or summarize the cut text."""
+
+CUTS_USER_TEMPLATE = """SCHEMA (cluster: "{cluster_name}") -- required \
+components this draft must keep intact:
+{schema_block}
+
+DRAFT ({current_words} words -- target is {target_words} words, {over_by} \
+words over):
+---
+{draft_text}
+---
+
+Suggest specific cuts to bring this draft down to the target length, \
+ordered from safest/least damaging to riskiest. Quote each cut exactly as \
+it appears in the draft, verbatim.
+
+Return a JSON object shaped like:
+{{
+  "suggestions": [
+    {{
+      "quote": "the exact sentence or phrase to remove, verbatim from the draft",
+      "reason": "why this can go without losing substance"
+    }}
+  ],
+  "notes": "1-2 sentences: what's left after these cuts, or a warning if the target seems unreachable without cutting required schema content"
+}}"""
+
+
+def build_cuts_prompt(
+    schema: "Schema",
+    draft_text: str,
+    cluster_name: str,
+    target_words: int,
+    current_words: int,
+    over_by: int,
+) -> str:
+    return CUTS_USER_TEMPLATE.format(
+        cluster_name=cluster_name,
+        schema_block=schema.as_prompt_block(),
+        draft_text=draft_text.strip(),
+        target_words=target_words,
+        current_words=current_words,
+        over_by=over_by,
+    )
+
+
 def build_debate_prompt(
     schema: "Schema",
     draft_text: str,
