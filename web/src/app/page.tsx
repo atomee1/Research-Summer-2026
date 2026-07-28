@@ -7,6 +7,7 @@ import { CausalFramingPanel } from "@/components/CausalFramingPanel";
 import { CausalTreeGraph } from "@/components/CausalTreeGraph";
 import { ExportJsonButton } from "@/components/ExportJsonButton";
 import type { CausalTree, SchemaCard } from "@/lib/schema";
+import { ResearchChat } from "@/components/ResearchChat";
 
 type ExampleArticle = {
   id: string;
@@ -134,17 +135,16 @@ export default function Home() {
       <div className="mx-auto max-w-6xl px-6 py-10">
         <header className="mb-8">
           <p className="text-sm font-medium uppercase tracking-wide text-purple-300">
-            Journalism + AI research prototype
+            Research prototype
           </p>
 
           <h1 className="mt-2 text-3xl font-bold">
-            CausalLens
+            Causal Lens
           </h1>
 
           <p className="mt-2 max-w-3xl text-slate-300">
-            Extract causal trees from news articles, inspect how strongly the
-            article supports each causal link, and surface reporting gaps for
-            further investigation.
+            Extract causal trees from news articles, inspect how strongly the article supports each causal
+            link, and surface reporting gaps for further investigation.
           </p>
         </header>
 
@@ -172,7 +172,7 @@ export default function Home() {
             </div>
 
             <div className="text-sm text-slate-400">
-              Or paste your own article below.
+              ...or paste your own article below.
             </div>
           </div>
 
@@ -248,6 +248,12 @@ export default function Home() {
             </div>
 
             <CausalTreeGraph tree={causalTree} />
+
+            <ResearchChat
+              title={title}
+              articleText={articleText}
+              causalTree={causalTree}
+            />
           </>
         )}
       </div>
