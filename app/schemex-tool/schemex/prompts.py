@@ -438,7 +438,10 @@ primary one already makes the point. NEVER suggest cutting a direct quote, \
 a specific number or piece of data, a named source, or anything that is \
 part of a schema component the draft needs to keep. Quote each cut EXACTLY \
 as it appears in the draft, verbatim, so it can be located and removed \
-automatically -- do not paraphrase or summarize the cut text."""
+automatically -- do not paraphrase or summarize the cut text. Return AT \
+MOST 15 suggestions, just enough to comfortably clear the target -- do not \
+exhaustively list every possible micro-cut in the draft; prefer fewer, \
+more substantial cuts over many tiny ones."""
 
 CUTS_USER_TEMPLATE = """SCHEMA (cluster: "{cluster_name}") -- required \
 components this draft must keep intact:
@@ -452,7 +455,8 @@ words over):
 
 Suggest specific cuts to bring this draft down to the target length, \
 ordered from safest/least damaging to riskiest. Quote each cut exactly as \
-it appears in the draft, verbatim.
+it appears in the draft, verbatim. Return at most 15 suggestions -- enough \
+to comfortably clear the target, not an exhaustive list of every possible cut.
 
 Return a JSON object shaped like:
 {{
