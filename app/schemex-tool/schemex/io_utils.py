@@ -1164,7 +1164,17 @@ def _draft_studio_html(clusters: List[Cluster], schemas: Dict[str, "Schema"]) ->
       updateWordCount();
       btnFix.disabled = true;
       lastCritique = null;
-      setStatus("Draft rewritten. Re-run critique to verify.");
+
+      // The arc/gauges/findings above are now stale -- they describe the
+      // OLD draft, not the one just written into the textarea. Clear them
+      // instead of silently leaving mismatched results on screen, which
+      // reads as "nothing happened" even though the draft did change.
+      document.querySelectorAll(".tool-btn").forEach(b => b.classList.remove("active"));
+      document.getElementById("gaugeRow").style.display = "none";
+      if (lastClusterId) renderArc(lastClusterId);
+      document.getElementById("findings").innerHTML =
+        '<div class="empty-state">Draft rewritten (look for [NEEDS REPORTING] tags where the fixer flagged gaps it couldn\\'t fill on its own). The arc and findings above are from the previous version -- run Critique or Check Coverage again to see how the new draft scores.</div>';
+      setStatus("Draft rewritten -- re-run a tool above to see how it scores now.");
     }} catch (e) {{
       setStatus("Fixer failed: " + e.message, true);
     }}
