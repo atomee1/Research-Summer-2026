@@ -155,10 +155,12 @@ class RunState:
         shows its details in a sidebar panel.
 
         When interactive=True (used by `schemex serve`), also injects a
-        "Journalist Console" panel: a live fixer, critic bot, coverage
-        check, and an advocate/skeptic debate chat, all backed by the JSON
-        API endpoints the server exposes -- so results appear right in the
-        browser instead of requiring a separate CLI run per check.
+        "Draft Studio" section below the graph: a word-budget dial, a
+        story-arc diagram of the matched cluster's components, a live
+        fixer/critic bot/coverage check/cuts bot, and an advocate/skeptic
+        debate chat -- all backed by the JSON API endpoints the server
+        exposes, so results appear right in the browser instead of
+        requiring a separate CLI run per check.
         """
         # Build the node/edge data the browser will consume
         nodes: list[dict] = []
@@ -307,10 +309,7 @@ class RunState:
     font-size: 15px;
     background: #0f0f10;
     color: #c2c0b6;
-    height: 100vh;
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
+    min-height: 100vh;
   }}
   header {{
     padding: 14px 22px;
@@ -353,8 +352,8 @@ class RunState:
   }}
   .main {{
     display: flex;
-    flex: 1;
-    overflow: hidden;
+    height: 420px;
+    border-bottom: 1px solid #2c2c2a;
   }}
   #graph {{
     flex: 1;
@@ -590,7 +589,7 @@ network.on("doubleClick", params => {{
 </html>"""
 
         if interactive:
-            html = html.replace("</body>", _console_panel_html(self.clusters, self.schemas) + "\n</body>")
+            html = html.replace("</body>", _draft_studio_html(self.clusters, self.schemas) + "\n</body>")
 
         return html
 
@@ -622,17 +621,18 @@ network.on("doubleClick", params => {{
 
 
 # ---------------------------------------------------------------------------
-# Journalist Console -- injected into graph.html by render_graph_html() when
-# interactive=True. Adds a live fixer, critic bot, coverage check, and an
-# advocate/skeptic debate chat, all calling the JSON API `schemex serve`
+# Draft Studio -- injected into graph.html by render_graph_html() when
+# interactive=True. A word-budget dial, a story-arc diagram of the matched
+# cluster's components, a live fixer/critic bot/coverage check/cuts bot, and
+# an advocate/skeptic debate chat, all calling the JSON API `schemex serve`
 # exposes (see server.py). Kept out of the static `schemex run` output so
 # that graph.html stays a plain, dependency-free file unless you're serving.
 # ---------------------------------------------------------------------------
 
-_CONSOLE_MARKER = "/* SCHEMEX_CONSOLE_PANEL */"
+_STUDIO_MARKER = "/* SCHEMEX_DRAFT_STUDIO */"
 
 
-def _console_panel_html(clusters: List[Cluster], schemas: Dict[str, "Schema"]) -> str:
+def _draft_studio_html(clusters: List[Cluster], schemas: Dict[str, "Schema"]) -> str:
     clusters_json = json.dumps(
         [{"id": c.id, "name": c.name} for c in clusters], indent=2
     )
@@ -644,149 +644,248 @@ def _console_panel_html(clusters: List[Cluster], schemas: Dict[str, "Schema"]) -
 
     return f"""
 <style>
-  .console-toggle-btn {{
-    margin-left: 12px;
-    background: #7F77DD;
-    color: #ffffff;
-    border: none;
-    border-radius: 6px;
-    padding: 7px 16px;
-    font-size: 13.5px;
-    font-weight: 600;
-    cursor: pointer;
+  .studio {{
+    padding: 40px 28px 80px;
+    max-width: 1500px;
+    margin: 0 auto;
   }}
-  .console-toggle-btn:hover {{ background: #8f88e8; }}
-  .console-panel {{
-    position: fixed;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    width: 100%;
-    height: 62vh;
-    background: #1a1a1c;
-    border-top: 1px solid #2c2c2a;
-    transform: translateY(100%);
-    transition: transform 0.2s ease;
-    z-index: 50;
+  .studio-head {{
     display: flex;
-    flex-direction: column;
-    box-shadow: 0 -8px 24px rgba(0,0,0,0.4);
-  }}
-  .console-panel.open {{ transform: translateY(0); }}
-  .console-header {{
-    display: flex;
-    align-items: center;
+    align-items: baseline;
     justify-content: space-between;
-    padding: 14px 20px;
-    border-bottom: 1px solid #2c2c2a;
-    flex-shrink: 0;
+    gap: 20px;
+    margin-bottom: 26px;
+    flex-wrap: wrap;
   }}
-  .console-header span {{
+  .studio-head h2 {{
     font-family: "Playfair Display", Georgia, serif;
-    font-size: 19px;
+    font-size: 27px;
     font-weight: 700;
-    color: #e8e6de;
   }}
-  .console-header button {{
-    background: none; border: none; color: #888780; font-size: 20px; cursor: pointer;
+  .studio-head p {{
+    color: #888780;
+    font-size: 14px;
+    max-width: 48ch;
   }}
-  .console-body {{ flex: 1; overflow: hidden; display: flex; min-height: 0; }}
-  .console-col {{ overflow-y: auto; padding: 16px 22px; min-width: 0; }}
-  .console-col + .console-col {{ border-left: 1px solid #2c2c2a; }}
-  .console-col-draft {{ flex: 0 0 400px; display: flex; flex-direction: column; }}
-  .console-col-results {{ flex: 1 1 auto; }}
-  .console-col-chat {{ flex: 0 0 400px; display: flex; flex-direction: column; }}
-  .console-row {{ margin-bottom: 14px; }}
-  .console-row label {{
-    display: block; font-size: 12px; font-weight: 700; letter-spacing: 0.06em;
-    text-transform: uppercase; color: #5F5E5A; margin-bottom: 7px;
+  .studio-grid {{
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 380px;
+    gap: 22px;
+    align-items: start;
   }}
-  .console-row select, .console-row textarea, .console-row input[type=number], .chat-input-row input {{
-    width: 100%; background: #242423; border: 1px solid #2c2c2a; border-radius: 6px;
-    color: #e8e6de; font-size: 15px; padding: 9px 11px; font-family: inherit;
+  .s-card {{
+    background: #1a1a1c;
+    border: 1px solid #2c2c2a;
+    border-radius: 12px;
+    padding: 20px 22px;
   }}
-  .console-row textarea {{ min-height: 220px; resize: vertical; line-height: 1.6; }}
-  .word-count-row {{
-    display: flex; justify-content: space-between; align-items: center;
-    font-size: 12.5px; color: #888780; margin: -6px 0 14px;
+  .s-eyebrow {{
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    color: #5F5E5A;
+    margin-bottom: 10px;
   }}
-  .console-actions {{ display: flex; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; }}
-  .console-actions button, .chat-input-row button, .cuts-apply-btn {{
-    background: #2c2c2a; color: #c2c0b6; border: 1px solid #3a3a37; border-radius: 6px;
-    padding: 8px 14px; font-size: 13.5px; font-weight: 500; cursor: pointer;
+
+  /* instrument row: cluster + draft + word dial */
+  .instrument-row {{ display: grid; grid-template-columns: minmax(0, 1fr) 230px; gap: 20px; margin-bottom: 20px; }}
+  .cluster-pick {{
+    display: inline-flex; align-items: center; gap: 8px;
+    background: #242423; border: 1px solid #2c2c2a; border-radius: 999px;
+    padding: 6px 8px 6px 14px; font-size: 13px; margin-bottom: 12px;
   }}
-  .console-actions button:hover:not(:disabled), .chat-input-row button:hover, .cuts-apply-btn:hover {{ background: #3a3a37; }}
-  .console-actions button:disabled {{ opacity: 0.4; cursor: not-allowed; }}
-  .console-status {{ font-size: 13px; color: #888780; margin-bottom: 10px; min-height: 18px; }}
-  .verdict {{ font-size: 16px; color: #e8e6de; margin-bottom: 12px; line-height: 1.5; font-weight: 500; }}
-  .scores {{ display: flex; gap: 16px; font-size: 13.5px; color: #888780; margin-bottom: 14px; }}
-  .scores b {{ color: #e8e6de; }}
-  .issue-group {{ margin-bottom: 16px; }}
-  .issue-group-title {{
-    font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
-    color: #5F5E5A; margin-bottom: 8px;
+  .cluster-pick .cdot {{ width: 7px; height: 7px; border-radius: 50%; background: #7F77DD; flex-shrink: 0; }}
+  .cluster-pick select {{
+    appearance: none; background: none; border: none; color: #e8e6de; font: inherit;
+    font-weight: 600; padding: 3px 20px 3px 4px; cursor: pointer; max-width: 340px;
   }}
-  .issue-row {{
-    border-left: 3px solid #888780; background: #242423; border-radius: 0 6px 6px 0;
-    padding: 10px 12px; margin-bottom: 7px; font-size: 13.5px; line-height: 1.55;
+  #draftText {{
+    width: 100%; min-height: 250px; resize: vertical;
+    background: #242423; border: 1px solid #2c2c2a; border-radius: 8px;
+    color: #e8e6de; font: inherit; font-size: 15px; line-height: 1.65; padding: 14px 16px;
   }}
+  #draftText:focus {{ outline: none; border-color: #7F77DD; }}
+  .dial-card {{ display: flex; flex-direction: column; align-items: center; text-align: center; }}
+  .dial-wrap {{ position: relative; width: 148px; height: 148px; margin: 2px 0 10px; }}
+  .dial-wrap svg {{ width: 100%; height: 100%; transform: rotate(-90deg); }}
+  .dial-track {{ fill: none; stroke: #2c2c2a; stroke-width: 9; }}
+  .dial-fill {{ fill: none; stroke: #1D9E75; stroke-width: 9; stroke-linecap: round; transition: stroke-dashoffset 0.4s ease, stroke 0.4s ease; }}
+  .dial-center {{ position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }}
+  .dial-count {{ font-size: 26px; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: -0.02em; color: #e8e6de; }}
+  .dial-of {{ font-size: 11.5px; color: #888780; margin-top: 2px; }}
+  .target-row {{ display: flex; align-items: center; gap: 6px; font-size: 12px; color: #888780; }}
+  .target-row input {{
+    width: 56px; background: #242423; border: 1px solid #2c2c2a; border-radius: 6px;
+    color: #e8e6de; font: inherit; font-variant-numeric: tabular-nums; padding: 4px 7px; text-align: center;
+  }}
+
+  /* story arc card */
+  .arc-card-head {{ display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; gap: 14px; flex-wrap: wrap; }}
+  .tool-row {{ display: flex; gap: 8px; flex-wrap: wrap; }}
+  .tool-btn {{
+    background: #242423; color: #e8e6de; border: 1px solid #2c2c2a; border-radius: 8px;
+    padding: 8px 14px; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer;
+    transition: border-color 0.15s, background 0.15s;
+  }}
+  .tool-btn:hover:not(:disabled) {{ border-color: #7F77DD; background: #2c2c2a; }}
+  .tool-btn:disabled {{ opacity: 0.4; cursor: not-allowed; }}
+  .tool-btn.active {{ border-color: #7F77DD; background: #2c2523c; box-shadow: inset 0 0 0 1px #7F77DD; }}
+
+  .arc {{ display: flex; align-items: center; overflow-x: auto; padding: 4px 2px 8px; }}
+  .arc-empty {{ color: #5F5E5A; font-size: 13px; padding: 8px 0; }}
+  .arc-node {{ flex-shrink: 0; display: flex; flex-direction: column; align-items: center; gap: 7px; width: 122px; }}
+  .arc-node .ring {{
+    width: 32px; height: 32px; border-radius: 50%; border: 2.5px solid #2c2c2a;
+    display: flex; align-items: center; justify-content: center; background: #242423;
+    transition: border-color 0.3s, background 0.3s;
+  }}
+  .arc-node .ring svg {{ width: 14px; height: 14px; }}
+  .arc-node.st-good .ring {{ border-color: #1D9E75; background: #0F2A22; }}
+  .arc-node.st-warn .ring {{ border-color: #EF9F27; background: #2E2008; }}
+  .arc-node.st-bad .ring {{ border-color: #E0584A; background: #2E1411; }}
+  .arc-node.st-minor .ring {{ border-color: #7F77DD; background: #201F3A; }}
+  .arc-node .alabel {{ font-size: 11.5px; text-align: center; color: #888780; line-height: 1.35; }}
+  .arc-connector {{
+    flex: 1 0 22px; min-width: 22px; height: 2px; margin: 0 -2px 24px;
+    background: repeating-linear-gradient(to right, #2c2c2a 0 6px, transparent 6px 10px);
+  }}
+
+  .gauge-row {{ display: flex; gap: 24px; margin-top: 18px; padding-top: 16px; border-top: 1px solid #242423; }}
+  .gauge {{ display: flex; align-items: center; gap: 11px; }}
+  .gauge svg {{ width: 48px; height: 48px; }}
+  .gauge-label {{ font-size: 11.5px; color: #888780; }}
+  .gauge-score {{ font-size: 17px; font-weight: 700; font-variant-numeric: tabular-nums; color: #e8e6de; }}
+
+  /* findings (shared results area) */
+  .verdict-line {{ font-family: "Playfair Display", Georgia, serif; font-size: 18px; line-height: 1.45; margin-bottom: 16px; color: #e8e6de; }}
+  .issue-group {{ margin-bottom: 14px; }}
+  .issue-group-title {{ font-size: 10.5px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: #5F5E5A; margin-bottom: 7px; }}
+  .issue-row {{ border-left: 3px solid #888780; background: #242423; border-radius: 0 8px 8px 0; padding: 10px 12px; margin-bottom: 7px; font-size: 13.5px; line-height: 1.55; }}
   .issue-head {{ color: #e8e6de; font-weight: 600; margin-bottom: 4px; }}
-  .issue-sev {{ font-weight: 700; text-transform: uppercase; font-size: 11px; margin-right: 5px; }}
+  .issue-sev {{ font-weight: 700; text-transform: uppercase; font-size: 10.5px; margin-right: 5px; }}
   .issue-quote {{ font-style: italic; color: #b4b2a9; margin: 4px 0; }}
   .issue-detail {{ color: #888780; }}
-  .cut-row label {{ display: flex; gap: 8px; align-items: flex-start; cursor: pointer; }}
-  .cut-row input[type=checkbox] {{ margin-top: 3px; flex-shrink: 0; transform: scale(1.15); }}
-  .cuts-apply-btn {{ margin-top: 4px; }}
-  .console-divider {{ border-top: 1px solid #2c2c2a; margin: 16px 0; }}
-  .chat-log {{ flex: 1; overflow-y: auto; margin-bottom: 10px; }}
-  .chat-question {{ font-size: 14.5px; color: #e8e6de; font-weight: 700; margin: 10px 0 7px; }}
-  .chat-answer {{
-    border-left: 3px solid #888780; background: #242423; border-radius: 0 6px 6px 0;
-    padding: 9px 12px; margin-bottom: 7px; font-size: 13.5px; line-height: 1.55; color: #b4b2a9;
+  .empty-state {{ color: #5F5E5A; font-size: 13.5px; padding: 6px 0 2px; }}
+
+  /* cuts (rendered into findings) */
+  .cuts-summary {{ font-size: 13.5px; color: #888780; margin-bottom: 12px; }}
+  .cut-row {{ display: flex; gap: 10px; padding: 9px 0; border-top: 1px solid #242423; }}
+  .cut-row:first-of-type {{ border-top: none; }}
+  .cut-row input {{ margin-top: 4px; accent-color: #7F77DD; width: 15px; height: 15px; flex-shrink: 0; }}
+  .cut-row .cut-quote {{ font-style: italic; font-size: 13.5px; color: #e8e6de; }}
+  .cut-row .cut-reason {{ font-size: 12.5px; color: #888780; margin-top: 3px; }}
+  .cut-row .cut-words {{ color: #5F5E5A; }}
+  .apply-btn {{
+    margin-top: 12px; background: #242423; border: 1px solid #2c2c2a; color: #e8e6de;
+    border-radius: 8px; padding: 8px 15px; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer;
   }}
-  .chat-answer b {{ color: #e8e6de; display: block; font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px; }}
-  .chat-input-row {{ display: flex; gap: 8px; flex-shrink: 0; }}
-  .chat-input-row input {{ flex: 1; }}
+  .apply-btn:hover {{ border-color: #7F77DD; }}
+
+  .s-status {{ font-size: 12.5px; color: #888780; margin-top: 12px; min-height: 16px; }}
+
+  /* chat rail */
+  .chat-card {{ display: flex; flex-direction: column; height: 700px; position: sticky; top: 20px; }}
+  .chat-sub {{ font-size: 12.5px; color: #5F5E5A; margin-bottom: 14px; line-height: 1.5; }}
+  .chat-log {{ flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; padding-right: 2px; }}
+  .chat-turn-q {{ align-self: flex-end; max-width: 88%; background: #242423; border-radius: 11px 11px 3px 11px; padding: 8px 12px; font-size: 13.5px; color: #e8e6de; }}
+  .chat-turn-a {{ display: flex; gap: 8px; max-width: 92%; }}
+  .avatar {{ width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 10.5px; font-weight: 700; flex-shrink: 0; margin-top: 1px; }}
+  .avatar.advocate {{ background: #0F2A22; color: #1D9E75; }}
+  .avatar.skeptic {{ background: #2E1411; color: #E0584A; }}
+  .bubble {{ background: #242423; border-radius: 3px 11px 11px 11px; padding: 9px 12px; font-size: 13.5px; line-height: 1.5; color: #c2c0b6; }}
+  .bubble-who {{ font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 3px; }}
+  .chat-turn-a.advocate .bubble-who {{ color: #1D9E75; }}
+  .chat-turn-a.skeptic .bubble-who {{ color: #E0584A; }}
+  .chat-input-row {{ display: flex; gap: 8px; margin-top: 12px; flex-shrink: 0; }}
+  .chat-input-row input {{ flex: 1; background: #242423; border: 1px solid #2c2c2a; border-radius: 8px; color: #e8e6de; font: inherit; font-size: 13.5px; padding: 9px 12px; }}
+  .chat-input-row input:focus {{ outline: none; border-color: #7F77DD; }}
+  .chat-input-row button {{ background: #7F77DD; color: #100E1C; border: none; border-radius: 8px; padding: 0 15px; font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; }}
+  .chat-input-row button:hover {{ background: #8f88e8; }}
+
+  .thinking {{ display: inline-flex; gap: 3px; align-items: center; }}
+  .thinking span {{ width: 5px; height: 5px; border-radius: 50%; background: #5F5E5A; animation: studio-pulse 1.1s infinite ease-in-out; }}
+  .thinking span:nth-child(2) {{ animation-delay: 0.15s; }}
+  .thinking span:nth-child(3) {{ animation-delay: 0.3s; }}
+  @keyframes studio-pulse {{ 0%, 80%, 100% {{ opacity: 0.25; }} 40% {{ opacity: 1; }} }}
+
+  @media (max-width: 1000px) {{
+    .studio-grid {{ grid-template-columns: 1fr; }}
+    .chat-card {{ height: 440px; position: static; }}
+    .instrument-row {{ grid-template-columns: 1fr; }}
+    .dial-card {{ flex-direction: row; justify-content: flex-start; gap: 16px; }}
+  }}
+  @media (prefers-reduced-motion: reduce) {{
+    .thinking span {{ animation-duration: 0.001ms !important; }}
+  }}
 </style>
 
-<div class="console-panel" id="consolePanel">
-  <div class="console-header">
-    <span>Journalist Console</span>
-    <button id="consoleClose" aria-label="Close">&times;</button>
+<div class="studio">
+  <div class="studio-head">
+    <div>
+      <h2>Draft Studio</h2>
+      <p>Analyze your draft against the schema, trim it to length, and pressure-test it before you file.</p>
+    </div>
   </div>
-  <div class="console-body">
-    <div class="console-col console-col-draft">
-      <div class="console-row">
-        <label>Cluster</label>
-        <select id="clusterSelect"><option value="">Auto-detect from draft</option></select>
+
+  <div class="studio-grid">
+    <div>
+      <div class="instrument-row">
+        <div>
+          <div class="cluster-pick">
+            <span class="cdot"></span>
+            <span>Matched to</span>
+            <select id="clusterSelect"><option value="">Auto-detect from draft</option></select>
+          </div>
+          <textarea id="draftText" placeholder="Paste your draft here..."></textarea>
+          <div class="s-status" id="wordCountLabel" style="margin-top:8px">0 words</div>
+        </div>
+
+        <div class="s-card dial-card">
+          <div class="s-eyebrow">Word budget</div>
+          <div class="dial-wrap">
+            <svg viewBox="0 0 148 148">
+              <circle class="dial-track" cx="74" cy="74" r="65"></circle>
+              <circle class="dial-fill" id="dialFill" cx="74" cy="74" r="65" stroke-dasharray="408.4" stroke-dashoffset="408.4"></circle>
+            </svg>
+            <div class="dial-center">
+              <div class="dial-count" id="dialCount">0</div>
+              <div class="dial-of">of <span id="dialTarget">--</span> words</div>
+            </div>
+          </div>
+          <div class="target-row">
+            <span>Target</span>
+            <input id="targetWords" type="number" min="1" placeholder="600">
+            <span>words</span>
+          </div>
+        </div>
       </div>
-      <div class="console-row">
-        <label>Draft</label>
-        <textarea id="draftText" placeholder="Paste your draft here..."></textarea>
+
+      <div class="s-card" style="margin-bottom:20px">
+        <div class="arc-card-head">
+          <div class="s-eyebrow" id="arcTitle" style="margin-bottom:0">Story arc</div>
+          <div class="tool-row">
+            <button class="tool-btn" id="btnCritique">Run Critique</button>
+            <button class="tool-btn" id="btnCoverage">Check Coverage</button>
+            <button class="tool-btn" id="btnFix" disabled>Apply Fixer</button>
+            <button class="tool-btn" id="btnCuts">Suggest Cuts</button>
+          </div>
+        </div>
+        <div class="arc" id="arc"><div class="arc-empty">Pick a cluster, or run a tool below, to see this story's component chain.</div></div>
+        <div class="gauge-row" id="gaugeRow" style="display:none"></div>
       </div>
-      <div class="word-count-row">
-        <span id="wordCountLabel">0 words</span>
+
+      <div class="s-card">
+        <div class="s-eyebrow">Findings</div>
+        <div id="findings"><div class="empty-state">Run Critique, Check Coverage, or Suggest Cuts above -- results appear here and colour the story arc.</div></div>
+        <div class="s-status" id="consoleStatus"></div>
       </div>
-      <div class="console-row">
-        <label>Target word limit (for Suggest Cuts)</label>
-        <input type="number" id="targetWords" min="1" placeholder="e.g. 600">
-      </div>
-      <div class="console-actions">
-        <button id="btnCritique">Run Critique</button>
-        <button id="btnCoverage">Check Coverage</button>
-        <button id="btnFix" disabled>Apply Fixer</button>
-        <button id="btnCuts">Suggest Cuts</button>
-      </div>
-      <div id="consoleStatus" class="console-status"></div>
     </div>
-    <div class="console-col console-col-results">
-      <div id="consoleResults"></div>
-    </div>
-    <div class="console-col console-col-chat">
-      <div class="console-row">
-        <label>Journalist Chat — Advocate vs. Skeptic</label>
-      </div>
-      <div id="chatLog" class="chat-log"></div>
+
+    <div class="s-card chat-card">
+      <div class="s-eyebrow">Journalist chat</div>
+      <div class="chat-sub">Ask a question about your draft. An Advocate defends its current framing; a Skeptic challenges it -- opposing readings trained against each other like a GAN.</div>
+      <div class="chat-log" id="chatLog"></div>
       <div class="chat-input-row">
         <input id="chatInput" type="text" placeholder="Ask a question about your draft...">
         <button id="btnChatSend">Ask</button>
@@ -796,48 +895,28 @@ def _console_panel_html(clusters: List[Cluster], schemas: Dict[str, "Schema"]) -
 </div>
 
 <script>
-{_CONSOLE_MARKER}
+{_STUDIO_MARKER}
 (function () {{
   const CLUSTERS = {clusters_json};
   const COMPONENTS_BY_CLUSTER = {components_by_cluster_json};
   const SEV_COLOR = {{ critical: "#E0584A", major: "#EF9F27", minor: "#7F77DD" }};
+  const SEV_STATUS = {{ critical: "bad", major: "warn", minor: "minor" }};
   const COV_COLOR = {{ present: "#1D9E75", weak: "#EF9F27", missing: "#E0584A" }};
+  const COV_STATUS = {{ present: "good", weak: "warn", missing: "bad" }};
+
+  const RING_ICON = {{
+    good: '<svg viewBox="0 0 16 16" fill="none"><path d="M3 8.5l3 3 7-7" stroke="#1D9E75" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+    warn: '<svg viewBox="0 0 16 16" fill="none"><path d="M8 5v4" stroke="#EF9F27" stroke-width="2" stroke-linecap="round"/><circle cx="8" cy="11.2" r="1" fill="#EF9F27"/></svg>',
+    bad: '<svg viewBox="0 0 16 16" fill="none"><path d="M4.5 4.5l7 7M11.5 4.5l-7 7" stroke="#E0584A" stroke-width="2" stroke-linecap="round"/></svg>',
+    minor: '<svg viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="2.4" fill="#7F77DD"/></svg>',
+  }};
 
   let lastCritique = null;
   let lastClusterId = null;
   let chatHistory = [];
 
-  function init() {{
-    const header = document.querySelector("header");
-    const btn = document.createElement("button");
-    btn.id = "consoleToggle";
-    btn.textContent = "Console";
-    btn.className = "console-toggle-btn";
-    header.appendChild(btn);
-
-    const panel = document.getElementById("consolePanel");
-    btn.addEventListener("click", () => panel.classList.toggle("open"));
-    document.getElementById("consoleClose").addEventListener("click", () => panel.classList.remove("open"));
-
-    const select = document.getElementById("clusterSelect");
-    CLUSTERS.forEach(c => {{
-      const opt = document.createElement("option");
-      opt.value = c.id;
-      opt.textContent = c.name;
-      select.appendChild(opt);
-    }});
-
-    document.getElementById("btnCritique").addEventListener("click", runCritique);
-    document.getElementById("btnCoverage").addEventListener("click", runCoverage);
-    document.getElementById("btnFix").addEventListener("click", runFix);
-    document.getElementById("btnCuts").addEventListener("click", runCuts);
-    document.getElementById("btnChatSend").addEventListener("click", sendChat);
-    document.getElementById("chatInput").addEventListener("keydown", e => {{
-      if (e.key === "Enter") sendChat();
-    }});
-    document.getElementById("draftText").addEventListener("input", updateWordCount);
-    document.getElementById("targetWords").addEventListener("input", updateWordCount);
-    updateWordCount();
+  function escapeHtml(s) {{
+    return (s == null ? "" : String(s)).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
   }}
 
   function setStatus(msg, isError) {{
@@ -846,31 +925,44 @@ def _console_panel_html(clusters: List[Cluster], schemas: Dict[str, "Schema"]) -
     el.style.color = isError ? "#E0584A" : "#888780";
   }}
 
-  function escapeHtml(s) {{
-    return (s == null ? "" : String(s))
-      .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-  }}
-
   function currentDraft() {{ return document.getElementById("draftText").value.trim(); }}
   function currentClusterId() {{ return document.getElementById("clusterSelect").value || null; }}
+  function wordCount(text) {{ return (text.match(/\\S+/g) || []).length; }}
 
-  function wordCount(text) {{
-    return (text.match(/\\S+/g) || []).length;
+  function colorForRatio(ratio) {{
+    if (ratio <= 1) return "#1D9E75";
+    if (ratio <= 1.25) return "#EF9F27";
+    return "#E0584A";
   }}
 
   function updateWordCount() {{
     const words = wordCount(currentDraft());
     const target = parseInt(document.getElementById("targetWords").value, 10);
     const label = document.getElementById("wordCountLabel");
+    const dialCount = document.getElementById("dialCount");
+    const dialTarget = document.getElementById("dialTarget");
+    const dialFill = document.getElementById("dialFill");
+    const CIRC = 2 * Math.PI * 65;
+
+    dialCount.textContent = words;
     if (target && !isNaN(target) && target > 0) {{
+      dialTarget.textContent = target;
+      const ratio = words / target;
       const diff = words - target;
       label.textContent = diff > 0
-        ? `${{words}} words (${{diff}} over ${{target}}-word limit)`
-        : `${{words}} words (${{Math.abs(diff)}} under ${{target}}-word limit)`;
-      label.style.color = diff > 0 ? "#E0584A" : "#1D9E75";
+        ? `${{words}} words (${{diff}} over ${{target}}-word target)`
+        : `${{words}} words (${{Math.abs(diff)}} under ${{target}}-word target)`;
+      label.style.color = diff > 0 ? "#E0584A" : "#888780";
+      const color = colorForRatio(ratio);
+      const pct = Math.min(ratio, 1);
+      dialFill.style.stroke = color;
+      dialFill.style.strokeDashoffset = CIRC - pct * CIRC;
     }} else {{
+      dialTarget.textContent = "--";
       label.textContent = `${{words}} words`;
       label.style.color = "#888780";
+      dialFill.style.stroke = "#1D9E75";
+      dialFill.style.strokeDashoffset = CIRC;
     }}
   }}
 
@@ -890,8 +982,7 @@ def _console_panel_html(clusters: List[Cluster], schemas: Dict[str, "Schema"]) -
     // vis.js failed to load (e.g. CDN blocked), that declaration throws and
     // leaves them in the temporal dead zone -- referencing them anywhere,
     // even in a typeof check, then throws ReferenceError. Swallow that here
-    // so a blocked CDN degrades to "no live repaint" instead of surfacing a
-    // confusing JS error in the console status line.
+    // so a blocked CDN degrades to "no live repaint" instead of an error.
     try {{
       if (typeof network === "undefined" || typeof data === "undefined") return;
     }} catch (e) {{
@@ -903,11 +994,9 @@ def _console_panel_html(clusters: List[Cluster], schemas: Dict[str, "Schema"]) -
       const color = colorByLabel[node.label];
       if (!color) return;
       updates.push(Object.assign({{}}, data.nodes.get(node.id), {{
-        color: {{
-          background: color, border: color,
+        color: {{ background: color, border: color,
           highlight: {{ background: color, border: "#ffffff" }},
-          hover: {{ background: color, border: "#ffffff" }},
-        }},
+          hover: {{ background: color, border: "#ffffff" }} }},
       }}));
     }});
     if (updates.length) {{
@@ -915,6 +1004,51 @@ def _console_panel_html(clusters: List[Cluster], schemas: Dict[str, "Schema"]) -
       data.nodes.add(updates);
       network.redraw();
     }}
+  }}
+
+  function renderArc(clusterId, statusByName) {{
+    const arcEl = document.getElementById("arc");
+    const names = COMPONENTS_BY_CLUSTER[clusterId] || [];
+    const cluster = CLUSTERS.find(c => c.id === clusterId);
+    document.getElementById("arcTitle").textContent = cluster ? `Story arc -- ${{cluster.name}}` : "Story arc";
+    if (!names.length) {{
+      arcEl.innerHTML = '<div class="arc-empty">Pick a cluster, or run a tool below, to see this story\\'s component chain.</div>';
+      return;
+    }}
+    statusByName = statusByName || {{}};
+    const parts = names.map((name, i) => {{
+      const status = statusByName[name];
+      const ring = status ? `<div class="ring">${{RING_ICON[status]}}</div>` : '<div class="ring"></div>';
+      const node = `<div class="arc-node${{status ? " st-" + status : ""}}">${{ring}}<div class="alabel">${{escapeHtml(name)}}</div></div>`;
+      return i === 0 ? node : '<div class="arc-connector"></div>' + node;
+    }});
+    arcEl.innerHTML = parts.join("");
+  }}
+
+  function renderGauges(score) {{
+    const row = document.getElementById("gaugeRow");
+    const items = [
+      {{ label: "Structure", val: score.structure }},
+      {{ label: "Argument", val: score.argument }},
+      {{ label: "Prose", val: score.prose }},
+    ];
+    const r = 21, circ = 2 * Math.PI * r;
+    row.innerHTML = items.map(it => {{
+      const v = Number(it.val) || 0;
+      const color = v <= 4 ? "#E0584A" : v <= 7 ? "#EF9F27" : "#1D9E75";
+      const off = circ - (v / 10) * circ;
+      return `
+        <div class="gauge">
+          <svg viewBox="0 0 52 52">
+            <circle cx="26" cy="26" r="${{r}}" fill="none" stroke="#2c2c2a" stroke-width="6"/>
+            <circle cx="26" cy="26" r="${{r}}" fill="none" stroke="${{color}}" stroke-width="6"
+              stroke-linecap="round" stroke-dasharray="${{circ}}" stroke-dashoffset="${{off}}"
+              transform="rotate(-90 26 26)"/>
+          </svg>
+          <div><div class="gauge-score">${{v}}/10</div><div class="gauge-label">${{it.label}}</div></div>
+        </div>`;
+    }}).join("");
+    row.style.display = "flex";
   }}
 
   function issueListHtml(title, issues) {{
@@ -928,36 +1062,37 @@ def _console_panel_html(clusters: List[Cluster], schemas: Dict[str, "Schema"]) -
     return `<div class="issue-group"><div class="issue-group-title">${{escapeHtml(title)}}</div>${{rows}}</div>`;
   }}
 
-  async function runCritique() {{
+  function setActiveTool(id) {{
+    document.querySelectorAll(".tool-btn").forEach(b => b.classList.remove("active"));
+    document.getElementById(id).classList.add("active");
+  }}
+
+  // ---- Run Critique ----
+  const btnFix = document.getElementById("btnFix");
+
+  document.getElementById("btnCritique").addEventListener("click", async function () {{
     const draft = currentDraft();
     if (!draft) {{ setStatus("Paste a draft first.", true); return; }}
+    setActiveTool("btnCritique");
     setStatus("Running critique...");
     try {{
       const result = await postJSON("/api/critique", {{ draft_text: draft, cluster_id: currentClusterId() }});
       lastCritique = result.critique;
       lastClusterId = result.cluster_id;
-      document.getElementById("btnFix").disabled = false;
+      btnFix.disabled = false;
       setStatus(`Matched cluster: ${{result.cluster_name}}`);
 
       const c = lastCritique;
-      document.getElementById("consoleResults").innerHTML = `
-        <div class="verdict">${{escapeHtml(c.verdict)}}</div>
-        <div class="scores">
-          <span>Structure <b>${{c.score.structure}}</b>/10</span>
-          <span>Argument <b>${{c.score.argument}}</b>/10</span>
-          <span>Prose <b>${{c.score.prose}}</b>/10</span>
-        </div>
+      document.getElementById("findings").innerHTML =
+        `<div class="verdict-line">${{escapeHtml(c.verdict)}}</div>
+        <div class="gauge-row" style="display:none"></div>
         ${{issueListHtml("Structural issues", c.structural_issues)}}
         ${{issueListHtml("Argumentative issues", c.argumentative_issues)}}
         ${{issueListHtml("Prose issues", c.prose_issues)}}
-        ${{(c.strengths && c.strengths.length) ? `<div class="issue-group"><div class="issue-group-title">Strengths</div>${{c.strengths.map(s => `<div class="issue-row" style="border-left-color:#1D9E75">${{escapeHtml(s)}}</div>`).join("")}}</div>` : ""}}
-      `;
+        ${{(c.strengths && c.strengths.length) ? `<div class="issue-group"><div class="issue-group-title">Strengths</div>${{c.strengths.map(s => `<div class="issue-row" style="border-left-color:#1D9E75">${{escapeHtml(s)}}</div>`).join("")}}</div>` : ""}}`;
 
-      // Colour graph nodes by the worst issue severity that mentions them --
-      // same heuristic `schemex critique` uses when injecting into a static graph.html.
-      // Scoped to the matched cluster's components, embedded at render time
-      // (COMPONENTS_BY_CLUSTER) rather than read off the live vis.js dataset,
-      // so this still works even if the vis.js CDN failed to load.
+      renderGauges(c.score);
+
       const allIssues = [].concat(c.structural_issues, c.argumentative_issues, c.prose_issues);
       const compNames = COMPONENTS_BY_CLUSTER[result.cluster_id] || [];
       const rank = {{ critical: 3, major: 2, minor: 1 }};
@@ -970,26 +1105,34 @@ def _console_panel_html(clusters: List[Cluster], schemas: Dict[str, "Schema"]) -
           }}
         }});
       }});
+      const statusByName = {{}};
       const colorMap = {{}};
-      compNames.forEach(name => {{ colorMap[name] = worst[name] ? SEV_COLOR[worst[name]] : "#1D9E75"; }});
+      compNames.forEach(name => {{
+        statusByName[name] = worst[name] ? SEV_STATUS[worst[name]] : "good";
+        colorMap[name] = worst[name] ? SEV_COLOR[worst[name]] : "#1D9E75";
+      }});
+      renderArc(result.cluster_id, statusByName);
       paintComponentColors(colorMap);
     }} catch (e) {{
       setStatus("Critique failed: " + e.message, true);
     }}
-  }}
+  }});
 
-  async function runCoverage() {{
+  // ---- Check Coverage ----
+  document.getElementById("btnCoverage").addEventListener("click", async function () {{
     const draft = currentDraft();
     if (!draft) {{ setStatus("Paste a draft first.", true); return; }}
+    setActiveTool("btnCoverage");
     setStatus("Checking coverage...");
     try {{
       const result = await postJSON("/api/coverage", {{ draft_text: draft, cluster_id: currentClusterId() }});
       lastClusterId = result.cluster_id;
       setStatus(`Matched cluster: ${{result.cluster_name}}`);
+      document.getElementById("gaugeRow").style.display = "none";
 
       const r = result.coverage;
-      document.getElementById("consoleResults").innerHTML = `
-        ${{r.overall_summary ? `<div class="verdict">${{escapeHtml(r.overall_summary)}}</div>` : ""}}
+      document.getElementById("findings").innerHTML = `
+        ${{r.overall_summary ? `<div class="verdict-line">${{escapeHtml(r.overall_summary)}}</div>` : ""}}
         ${{r.items.map(item => `
           <div class="issue-row" style="border-left-color:${{COV_COLOR[item.status] || '#888780'}}">
             <div class="issue-head"><span class="issue-sev" style="color:${{COV_COLOR[item.status] || '#888780'}}">${{escapeHtml(item.status)}}</span>${{escapeHtml(item.component_name)}}</div>
@@ -997,34 +1140,43 @@ def _console_panel_html(clusters: List[Cluster], schemas: Dict[str, "Schema"]) -
             ${{item.suggestion ? `<div class="issue-quote">${{escapeHtml(item.suggestion)}}</div>` : ""}}
           </div>`).join("")}}
       `;
+
+      const statusByName = {{}};
       const colorMap = {{}};
-      r.items.forEach(item => {{ colorMap[item.component_name] = COV_COLOR[item.status] || "#888780"; }});
+      r.items.forEach(item => {{
+        statusByName[item.component_name] = COV_STATUS[item.status] || "warn";
+        colorMap[item.component_name] = COV_COLOR[item.status] || "#888780";
+      }});
+      renderArc(result.cluster_id, statusByName);
       paintComponentColors(colorMap);
     }} catch (e) {{
       setStatus("Coverage check failed: " + e.message, true);
     }}
-  }}
+  }});
 
-  async function runFix() {{
+  // ---- Apply Fixer ----
+  btnFix.addEventListener("click", async function () {{
     if (!lastCritique) {{ setStatus("Run a critique first.", true); return; }}
     setStatus("Rewriting draft...");
     try {{
       const result = await postJSON("/api/fix", {{ draft_text: currentDraft(), critique: lastCritique }});
       document.getElementById("draftText").value = result.fixed_draft;
-      document.getElementById("btnFix").disabled = true;
-      lastCritique = null;
       updateWordCount();
+      btnFix.disabled = true;
+      lastCritique = null;
       setStatus("Draft rewritten. Re-run critique to verify.");
     }} catch (e) {{
       setStatus("Fixer failed: " + e.message, true);
     }}
-  }}
+  }});
 
-  async function runCuts() {{
+  // ---- Suggest Cuts ----
+  document.getElementById("btnCuts").addEventListener("click", async function () {{
     const draft = currentDraft();
     const target = parseInt(document.getElementById("targetWords").value, 10);
     if (!draft) {{ setStatus("Paste a draft first.", true); return; }}
     if (!target || target <= 0) {{ setStatus("Enter a target word limit first.", true); return; }}
+    setActiveTool("btnCuts");
     setStatus("Finding cuts...");
     try {{
       const result = await postJSON("/api/cuts", {{ draft_text: draft, target_words: target, cluster_id: currentClusterId() }});
@@ -1033,69 +1185,50 @@ def _console_panel_html(clusters: List[Cluster], schemas: Dict[str, "Schema"]) -
 
       const c = result.cuts;
       if (c.over_by === 0) {{
-        document.getElementById("consoleResults").innerHTML =
-          `<div class="verdict">${{escapeHtml(c.notes || "Already at or under the target word count.")}}</div>`;
+        document.getElementById("findings").innerHTML =
+          `<div class="empty-state">${{escapeHtml(c.notes || "Already at or under the target word count.")}}</div>`;
         return;
       }}
-
-      let running = 0;
-      const rows = c.suggestions.map((s, i) => {{
-        running += s.word_count;
-        const reachedTarget = running >= c.over_by;
-        const warn = s.found_in_draft ? "" : `<div class="issue-quote" style="color:#E0584A">Could not find this exact text in the draft -- may need manual removal.</div>`;
-        return `
-          <div class="issue-row cut-row" style="border-left-color:${{reachedTarget ? '#1D9E75' : '#EF9F27'}}">
-            <label>
-              <input type="checkbox" class="cut-checkbox" data-quote="${{encodeURIComponent(s.quote)}}" ${{s.found_in_draft ? "" : "disabled"}}>
-              <span>
-                <div class="issue-quote">"${{escapeHtml(s.quote)}}"</div>
-                <div class="issue-detail">${{escapeHtml(s.reason)}} <b>(${{s.word_count}} words)</b></div>
-                ${{warn}}
-              </span>
-            </label>
-          </div>`;
-      }}).join("");
-
-      document.getElementById("consoleResults").innerHTML = `
-        <div class="verdict">${{c.current_words}} words, ${{c.over_by}} over your ${{c.target_words}}-word target.${{c.notes ? " " + escapeHtml(c.notes) : ""}}</div>
-        <div class="issue-group">
-          <div class="issue-group-title">Suggested cuts (safest first -- check the ones to apply)</div>
-          ${{rows}}
-        </div>
-        <button id="btnApplyCuts" class="cuts-apply-btn">Apply checked cuts</button>
+      document.getElementById("findings").innerHTML = `
+        <div class="cuts-summary">${{c.current_words}} words, ${{c.over_by}} over your ${{c.target_words}}-word target.${{c.notes ? " " + escapeHtml(c.notes) : ""}}</div>
+        <div id="cutsList">${{c.suggestions.map(s => `
+          <label class="cut-row">
+            <input type="checkbox" class="cut-checkbox" data-quote="${{encodeURIComponent(s.quote)}}" ${{s.found_in_draft ? "" : "disabled"}}>
+            <span>
+              <div class="cut-quote">"${{escapeHtml(s.quote)}}"</div>
+              <div class="cut-reason">${{escapeHtml(s.reason)}} <span class="cut-words">(${{s.word_count}} words)</span></div>
+              ${{s.found_in_draft ? "" : '<div class="cut-reason" style="color:#E0584A">Could not find this exact text in the draft.</div>'}}
+            </span>
+          </label>`).join("")}}</div>
+        <button class="apply-btn" id="applyCuts">Apply checked cuts</button>
       `;
-      document.getElementById("btnApplyCuts").addEventListener("click", applyCuts);
+      document.getElementById("applyCuts").addEventListener("click", function () {{
+        let text = currentDraft();
+        let removed = 0;
+        document.querySelectorAll(".cut-checkbox:checked").forEach(cb => {{
+          const q = decodeURIComponent(cb.dataset.quote);
+          if (q && text.includes(q)) {{ text = text.replace(q, ""); removed++; }}
+        }});
+        text = text.replace(/[ \\t]{{2,}}/g, " ").replace(/\\n{{3,}}/g, "\\n\\n").replace(/ +\\n/g, "\\n").trim();
+        document.getElementById("draftText").value = text;
+        updateWordCount();
+        setStatus(removed ? `Applied ${{removed}} cut${{removed === 1 ? "" : "s"}}.` : "No cuts applied.");
+      }});
     }} catch (e) {{
       setStatus("Suggest cuts failed: " + e.message, true);
     }}
-  }}
+  }});
 
-  function applyCuts() {{
-    let draft = currentDraft();
-    const checked = document.querySelectorAll(".cut-checkbox:checked");
-    let removed = 0;
-    checked.forEach(cb => {{
-      const quote = decodeURIComponent(cb.dataset.quote);
-      if (quote && draft.includes(quote)) {{
-        draft = draft.replace(quote, "");
-        removed++;
-      }}
-    }});
-    // Tidy up double spaces / blank lines left behind by removed sentences.
-    draft = draft.replace(/[ \\t]{{2,}}/g, " ").replace(/\\n{{3,}}/g, "\\n\\n").replace(/ +\\n/g, "\\n").trim();
-    document.getElementById("draftText").value = draft;
-    updateWordCount();
-    setStatus(removed ? `Applied ${{removed}} cut${{removed === 1 ? "" : "s"}}.` : "No cuts applied -- nothing was checked.");
-  }}
+  // ---- chat ----
+  const chatLog = document.getElementById("chatLog");
 
   function renderChat() {{
-    const log = document.getElementById("chatLog");
-    log.innerHTML = chatHistory.map(turn => `
-      <div class="chat-question">${{escapeHtml(turn.question)}}</div>
-      <div class="chat-answer" style="border-left-color:#1D9E75"><b>Advocate</b>${{escapeHtml(turn.advocate)}}</div>
-      <div class="chat-answer" style="border-left-color:#E0584A"><b>Skeptic</b>${{escapeHtml(turn.skeptic)}}</div>
+    chatLog.innerHTML = chatHistory.map(turn => `
+      <div class="chat-turn-q">${{escapeHtml(turn.question)}}</div>
+      <div class="chat-turn-a advocate"><div class="avatar advocate">A</div><div class="bubble"><div class="bubble-who">Advocate</div>${{escapeHtml(turn.advocate)}}</div></div>
+      <div class="chat-turn-a skeptic"><div class="avatar skeptic">S</div><div class="bubble"><div class="bubble-who">Skeptic</div>${{escapeHtml(turn.skeptic)}}</div></div>
     `).join("");
-    log.scrollTop = log.scrollHeight;
+    chatLog.scrollTop = chatLog.scrollHeight;
   }}
 
   async function sendChat() {{
@@ -1120,6 +1253,27 @@ def _console_panel_html(clusters: List[Cluster], schemas: Dict[str, "Schema"]) -
     }} catch (e) {{
       setStatus("Chat failed: " + e.message, true);
     }}
+  }}
+
+  document.getElementById("btnChatSend").addEventListener("click", sendChat);
+  document.getElementById("chatInput").addEventListener("keydown", e => {{ if (e.key === "Enter") sendChat(); }});
+
+  // ---- init ----
+  function init() {{
+    const select = document.getElementById("clusterSelect");
+    CLUSTERS.forEach(c => {{
+      const opt = document.createElement("option");
+      opt.value = c.id;
+      opt.textContent = c.name;
+      select.appendChild(opt);
+    }});
+    select.addEventListener("change", () => {{
+      if (select.value) renderArc(select.value);
+      else document.getElementById("arc").innerHTML = '<div class="arc-empty">Pick a cluster, or run a tool below, to see this story\\'s component chain.</div>';
+    }});
+    document.getElementById("draftText").addEventListener("input", updateWordCount);
+    document.getElementById("targetWords").addEventListener("input", updateWordCount);
+    updateWordCount();
   }}
 
   if (document.readyState === "loading") {{
