@@ -19,7 +19,15 @@ from typing import Any, Optional
 from .io_utils import RunState
 from .llm import ClaudeClient, LLMError
 from .models import Cluster, CritiqueReport
-from .pipeline import pick_best_cluster, run_coverage_check, run_critique, run_cuts, run_debate, run_fixer
+from .pipeline import (
+    pick_best_cluster,
+    run_coverage_check,
+    run_critique,
+    run_cuts,
+    run_debate,
+    run_fixer,
+    run_toulmin,
+)
 
 
 class _AppState:
@@ -120,6 +128,8 @@ def _make_handler(app: _AppState):
                     self._handle_cuts(body)
                 elif self.path == "/api/chat":
                     self._handle_chat(body)
+                elif self.path == "/api/toulmin":
+                    self._handle_toulmin(body)
                 elif self.path == "/api/ledger":
                     self._handle_ledger_append(body)
                 else:
@@ -207,6 +217,21 @@ def _make_handler(app: _AppState):
                 "cluster_id": cluster.id,
                 "cluster_name": cluster.name,
                 **reply,
+            })
+
+        def _handle_toulmin(self, body: dict) -> None:
+            draft_text = (body.get("draft_text") or "").strip()
+            if not draft_text:
+                raise ValueError("draft_text is required")
+            cluster = app.cluster_for(body.get("cluster_id"), draft_text)
+            schema = app.state.schemas.get(cluster.id)
+            if schema is None:
+                raise ValueError(f"Cluster '{cluster.id}' has no schema.")
+            report = run_toulmin(app.client(), "draft", draft_text, schema, cluster)
+            self._send_json({
+                "cluster_id": cluster.id,
+                "cluster_name": cluster.name,
+                "toulmin": report.to_dict(),
             })
 
         def _handle_ledger_append(self, body: dict) -> None:

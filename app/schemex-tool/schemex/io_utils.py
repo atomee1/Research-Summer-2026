@@ -886,6 +886,7 @@ def _draft_studio_html(clusters: List[Cluster], schemas: Dict[str, "Schema"]) ->
             <button class="tool-btn" id="btnCoverage">Check Coverage</button>
             <button class="tool-btn" id="btnFix" disabled>Apply Fixer</button>
             <button class="tool-btn" id="btnCuts">Suggest Cuts</button>
+            <button class="tool-btn" id="btnToulmin">Map Argument</button>
           </div>
         </div>
         <div class="arc" id="arc"><div class="arc-empty">Pick a cluster, or run a tool below, to see this story's component chain.</div></div>
@@ -1329,6 +1330,55 @@ def _draft_studio_html(clusters: List[Cluster], schemas: Dict[str, "Schema"]) ->
       }});
     }} catch (e) {{
       setStatus("Suggest cuts failed: " + e.message, true);
+    }}
+  }});
+
+  // ---- Map Argument (Toulmin: claim vs. warrant, gaps in support) ----
+  document.getElementById("btnToulmin").addEventListener("click", async function () {{
+    const draft = currentDraft();
+    if (!draft) {{ setStatus("Paste a draft first.", true); return; }}
+    setActiveTool("btnToulmin");
+    setStatus("Mapping argument structure...");
+    try {{
+      const result = await postJSON("/api/toulmin", {{ draft_text: draft, cluster_id: currentClusterId() }});
+      lastClusterId = result.cluster_id;
+      setStatus(`Matched cluster: ${{result.cluster_name}}`);
+      document.getElementById("gaugeRow").style.display = "none";
+
+      const t = result.toulmin;
+      const ROLE_LABEL = {{ claim: "Claim", warrant: "Warrant", narrative: "Narrative" }};
+      document.getElementById("findings").innerHTML = `
+        ${{t.summary ? `<div class="verdict-line">${{escapeHtml(t.summary)}}</div>` : ""}}
+        <div class="issue-group-title" style="margin-bottom:8px">Teal = warrant/evidence &middot; purple = supported claim &middot; red = unsupported claim (gap) &middot; grey = narrative</div>
+        ${{t.items.map(item => {{
+          const isGap = item.role === "claim" && !item.supported;
+          const color = item.role === "warrant" ? "#1D9E75" : item.role === "claim" ? (item.supported ? "#7F77DD" : "#E0584A") : "#5F5E5A";
+          const label = (ROLE_LABEL[item.role] || item.role) + (isGap ? " -- gap" : "");
+          return `<div class="issue-row" style="border-left-color:${{color}}">
+            <div class="issue-head"><span class="issue-sev" style="color:${{color}}">${{escapeHtml(label)}}</span>${{escapeHtml(item.component_name)}}</div>
+            <div class="issue-detail">${{escapeHtml(item.explanation)}}</div>
+          </div>`;
+        }}).join("")}}
+      `;
+
+      const statusByName = {{}};
+      const colorMap = {{}};
+      t.items.forEach(item => {{
+        const isGap = item.role === "claim" && !item.supported;
+        if (item.role === "warrant") {{
+          statusByName[item.component_name] = "good";
+          colorMap[item.component_name] = "#1D9E75";
+        }} else if (item.role === "claim") {{
+          statusByName[item.component_name] = isGap ? "bad" : "minor";
+          colorMap[item.component_name] = isGap ? "#E0584A" : "#7F77DD";
+        }} else {{
+          colorMap[item.component_name] = "#5F5E5A";
+        }}
+      }});
+      renderArc(result.cluster_id, statusByName);
+      paintComponentColors(colorMap);
+    }} catch (e) {{
+      setStatus("Argument map failed: " + e.message, true);
     }}
   }});
 
