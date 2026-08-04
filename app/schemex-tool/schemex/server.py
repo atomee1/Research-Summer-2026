@@ -11,6 +11,8 @@ Uses only the standard library (http.server) -- no new dependency.
 from __future__ import annotations
 
 import json
+import os
+from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any, Optional
 
@@ -22,6 +24,7 @@ from .pipeline import pick_best_cluster, run_coverage_check, run_critique, run_c
 
 class _AppState:
     def __init__(self, state_dir: str, model: str, max_tokens: int, api_key: Optional[str]) -> None:
+        self.state_dir = state_dir
         self.state = RunState.load(state_dir)
         if not self.state.clusters or not self.state.schemas:
             raise SystemExit(
@@ -31,6 +34,11 @@ class _AppState:
         self.max_tokens = max_tokens
         self.api_key = api_key
         self._client: Optional[ClaudeClient] = None
+        # Add-only ledger of every automated edit (fixer rewrites, applied
+        # cuts) the tool makes to a draft -- opened in append mode only, so
+        # existing entries are never overwritten. Doubles as a safety/audit
+        # trail and as evaluation data (see fellowship meeting notes).
+        self.ledger_path = os.path.join(state_dir, "ledger.jsonl")
 
     def client(self) -> ClaudeClient:
         if self._client is None:
@@ -84,8 +92,20 @@ def _make_handler(app: _AppState):
                     {"id": c.id, "name": c.name, "rationale": c.rationale}
                     for c in app.state.clusters
                 ])
+            elif self.path == "/api/ledger":
+                self._handle_ledger_list()
             else:
                 self._send_json({"error": "not found"}, 404)
+
+        def _handle_ledger_list(self) -> None:
+            entries = []
+            if os.path.exists(app.ledger_path):
+                with open(app.ledger_path, "r", encoding="utf-8") as f:
+                    for line in f:
+                        line = line.strip()
+                        if line:
+                            entries.append(json.loads(line))
+            self._send_json(entries)
 
         def do_POST(self) -> None:  # noqa: N802
             try:
@@ -100,6 +120,8 @@ def _make_handler(app: _AppState):
                     self._handle_cuts(body)
                 elif self.path == "/api/chat":
                     self._handle_chat(body)
+                elif self.path == "/api/ledger":
+                    self._handle_ledger_append(body)
                 else:
                     self._send_json({"error": "not found"}, 404)
             except LLMError as exc:
@@ -186,6 +208,27 @@ def _make_handler(app: _AppState):
                 "cluster_name": cluster.name,
                 **reply,
             })
+
+        def _handle_ledger_append(self, body: dict) -> None:
+            action = body.get("action")
+            if action not in ("fix", "cut"):
+                raise ValueError("action must be 'fix' or 'cut'")
+            entry = {
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "action": action,
+                "cluster_id": body.get("cluster_id"),
+                "cluster_name": body.get("cluster_name"),
+                "before_text": body.get("before_text", ""),
+                "after_text": body.get("after_text", ""),
+                "before_words": body.get("before_words", 0),
+                "after_words": body.get("after_words", 0),
+                "detail": body.get("detail", ""),
+            }
+            # Append-only: opened in "a" mode, so no existing entry is ever
+            # rewritten or removed, even if the process restarts mid-session.
+            with open(app.ledger_path, "a", encoding="utf-8") as f:
+                f.write(json.dumps(entry) + "\n")
+            self._send_json(entry)
 
     return Handler
 
