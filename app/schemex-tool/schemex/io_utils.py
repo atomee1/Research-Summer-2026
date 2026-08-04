@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from typing import Any, Dict, List
 
 from .models import Cluster, CoverageReport, Example, RefinementRound, Schema
@@ -631,6 +632,22 @@ network.on("doubleClick", params => {{
 
 _STUDIO_MARKER = "/* SCHEMEX_DRAFT_STUDIO */"
 
+_STOPWORDS = {
+    "the", "a", "an", "and", "or", "to", "of", "in", "on", "for", "with",
+    "by", "is", "are", "was", "were", "be", "been", "that", "this", "it",
+    "as", "at", "from", "should", "must", "least", "one", "its", "their",
+    "not", "into", "than", "then", "each", "any", "all", "such",
+}
+
+
+def _keywords(text: str) -> List[str]:
+    """Lowercase content words (len > 2, no stopwords) from a piece of text --
+    used for the client-side paragraph-to-component matcher in Draft Studio,
+    which runs live in the browser as the journalist types and so can't
+    afford a round-trip to the LLM on every keystroke."""
+    words = re.findall(r"[a-zA-Z]+", text.lower())
+    return sorted({w for w in words if len(w) > 2 and w not in _STOPWORDS})
+
 
 def _draft_studio_html(clusters: List[Cluster], schemas: Dict[str, "Schema"]) -> str:
     clusters_json = json.dumps(
@@ -641,6 +658,21 @@ def _draft_studio_html(clusters: List[Cluster], schemas: Dict[str, "Schema"]) ->
         for cid, schema in schemas.items()
     }
     components_by_cluster_json = json.dumps(components_by_cluster, indent=2)
+
+    # Keyword bag per component (name + first few attributes), used by the
+    # live paragraph<->component matcher below -- deliberately a cheap local
+    # heuristic, not the LLM, so the graph can update on every keystroke.
+    component_keywords_by_cluster = {
+        cid: {
+            comp.name: sorted(set(
+                _keywords(comp.name)
+                + [w for attr in comp.attributes[:3] for w in _keywords(attr)]
+            ))[:30]
+            for comp in schema.components
+        }
+        for cid, schema in schemas.items()
+    }
+    component_keywords_json = json.dumps(component_keywords_by_cluster, indent=2)
 
     return f"""
 <style>
@@ -750,6 +782,13 @@ def _draft_studio_html(clusters: List[Cluster], schemas: Dict[str, "Schema"]) ->
     flex: 1 0 22px; min-width: 22px; height: 2px; margin: 0 -2px 24px;
     background: repeating-linear-gradient(to right, #2c2c2a 0 6px, transparent 6px 10px);
   }}
+  .arc-node[draggable="true"] {{ cursor: grab; }}
+  .arc-node[draggable="true"]:active {{ cursor: grabbing; }}
+  .arc-node.dragging {{ opacity: 0.35; }}
+  .arc-node.unmatched .alabel {{ font-style: italic; }}
+  .arc-node.missing-component {{ opacity: 0.45; }}
+  .arc-node.missing-component .ring {{ border-style: dashed; }}
+  .arc-live-hint {{ font-size: 11.5px; color: #5F5E5A; margin: -8px 0 12px; }}
 
   .gauge-row {{ display: flex; gap: 24px; margin-top: 18px; padding-top: 16px; border-top: 1px solid #242423; }}
   .gauge {{ display: flex; align-items: center; gap: 11px; }}
@@ -889,6 +928,7 @@ def _draft_studio_html(clusters: List[Cluster], schemas: Dict[str, "Schema"]) ->
             <button class="tool-btn" id="btnToulmin">Map Argument</button>
           </div>
         </div>
+        <div class="arc-live-hint" id="arcLiveHint" style="display:none">Nodes follow your draft's current paragraph order &middot; drag a node to reorder the draft &middot; click a node to jump to that paragraph &middot; amber = out of the schema's usual order</div>
         <div class="arc" id="arc"><div class="arc-empty">Pick a cluster, or run a tool below, to see this story's component chain.</div></div>
         <div class="gauge-row" id="gaugeRow" style="display:none"></div>
       </div>
@@ -923,6 +963,7 @@ def _draft_studio_html(clusters: List[Cluster], schemas: Dict[str, "Schema"]) ->
 (function () {{
   const CLUSTERS = {clusters_json};
   const COMPONENTS_BY_CLUSTER = {components_by_cluster_json};
+  const COMPONENT_KEYWORDS_BY_CLUSTER = {component_keywords_json};
   const SEV_COLOR = {{ critical: "#E0584A", major: "#EF9F27", minor: "#7F77DD" }};
   const SEV_STATUS = {{ critical: "bad", major: "warn", minor: "minor" }};
   const COV_COLOR = {{ present: "#1D9E75", weak: "#EF9F27", missing: "#E0584A" }};
@@ -939,6 +980,9 @@ def _draft_studio_html(clusters: List[Cluster], schemas: Dict[str, "Schema"]) ->
   let lastClusterId = null;
   let lastCutsSuggestions = [];
   let chatHistory = [];
+  let liveOrder = [];
+  let liveArcTimer = null;
+  let draggedParaIndex = null;
 
   function escapeHtml(s) {{
     return (s == null ? "" : String(s)).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -1093,6 +1137,182 @@ def _draft_studio_html(clusters: List[Cluster], schemas: Dict[str, "Schema"]) ->
     arcEl.innerHTML = parts.join("");
   }}
 
+  // ---- live graph<->text sync: paragraphs <-> story arc ----
+  // A lightweight, purely local heuristic (keyword overlap) so the arc can
+  // redraw on every keystroke without waiting on an LLM round-trip. It's
+  // approximate by design -- Run Critique / Check Coverage still give the
+  // authoritative LLM-graded view; this is for structure-at-a-glance while
+  // editing, and for reordering paragraphs by dragging arc nodes.
+
+  function splitParagraphs(text) {{
+    const parts = text.split(/(\\n\\s*\\n)/); // captures separators: content, sep, content, sep, ...
+    const paras = [];
+    let pos = 0;
+    for (let i = 0; i < parts.length; i++) {{
+      const part = parts[i];
+      if (i % 2 === 0) {{
+        const trimmed = part.trim();
+        if (trimmed) {{
+          const start = pos + part.indexOf(trimmed);
+          paras.push({{ text: trimmed, start: start, end: start + trimmed.length }});
+        }}
+      }}
+      pos += part.length;
+    }}
+    return paras;
+  }}
+
+  function wordsSet(text) {{
+    return new Set((text.toLowerCase().match(/[a-z]+/g) || []).filter(w => w.length > 2));
+  }}
+
+  function overlapScore(paraWords, keywords) {{
+    if (!keywords || !keywords.length) return 0;
+    let hits = 0;
+    for (const kw of keywords) {{ if (paraWords.has(kw)) hits++; }}
+    return hits;
+  }}
+
+  function guessClusterId(paragraphs) {{
+    let best = null, bestScore = -1;
+    for (const cid of Object.keys(COMPONENT_KEYWORDS_BY_CLUSTER)) {{
+      const kwByName = COMPONENT_KEYWORDS_BY_CLUSTER[cid];
+      let total = 0;
+      paragraphs.forEach(p => {{
+        const pw = wordsSet(p.text);
+        let paraBest = 0;
+        Object.values(kwByName).forEach(kws => {{ paraBest = Math.max(paraBest, overlapScore(pw, kws)); }});
+        total += paraBest;
+      }});
+      if (total > bestScore) {{ bestScore = total; best = cid; }}
+    }}
+    return best;
+  }}
+
+  function matchParagraphs(paragraphs, clusterId) {{
+    const kwByName = COMPONENT_KEYWORDS_BY_CLUSTER[clusterId] || {{}};
+    const names = COMPONENTS_BY_CLUSTER[clusterId] || [];
+    const MIN_SCORE = 1;
+    return paragraphs.map((p, i) => {{
+      const pw = wordsSet(p.text);
+      let bestName = null, bestScore = 0;
+      names.forEach(name => {{
+        const s = overlapScore(pw, kwByName[name]);
+        if (s > bestScore) {{ bestScore = s; bestName = name; }}
+      }});
+      const matched = bestScore >= MIN_SCORE ? bestName : null;
+      return {{
+        paraIndex: i, start: p.start, end: p.end, text: p.text,
+        component: matched,
+        canonicalIndex: matched ? names.indexOf(matched) : -1,
+      }};
+    }});
+  }}
+
+  function renderLiveArc() {{
+    const draft = currentDraft();
+    const arcEl = document.getElementById("arc");
+    const hint = document.getElementById("arcLiveHint");
+    if (!draft) {{
+      document.getElementById("arcTitle").textContent = "Story arc";
+      arcEl.innerHTML = '<div class="arc-empty">Pick a cluster, or run a tool below, to see this story\\'s component chain.</div>';
+      hint.style.display = "none";
+      liveOrder = [];
+      return;
+    }}
+
+    const paragraphs = splitParagraphs(draft);
+    let cid = currentClusterId();
+    if (!cid) cid = guessClusterId(paragraphs);
+    if (!cid) {{
+      arcEl.innerHTML = '<div class="arc-empty">Could not match this draft to a cluster yet -- keep writing, or pick one above.</div>';
+      hint.style.display = "none";
+      liveOrder = [];
+      return;
+    }}
+
+    const matched = matchParagraphs(paragraphs, cid);
+    liveOrder = matched;
+
+    const cluster = CLUSTERS.find(c => c.id === cid);
+    document.getElementById("arcTitle").textContent = cluster ? `Story arc -- ${{cluster.name}} (live)` : "Story arc (live)";
+    hint.style.display = "";
+
+    let maxSeen = -1;
+    const colorMap = {{}};
+    const nodesHtml = matched.map(m => {{
+      if (!m.component) {{
+        return `<div class="arc-node unmatched" data-para="${{m.paraIndex}}" draggable="true">
+          <div class="ring"></div>
+          <div class="alabel">&para;${{m.paraIndex + 1}}<br><span style="opacity:.6">unmatched text</span></div>
+        </div>`;
+      }}
+      const reordered = m.canonicalIndex < maxSeen;
+      if (m.canonicalIndex > maxSeen) maxSeen = m.canonicalIndex;
+      colorMap[m.component] = reordered ? "#EF9F27" : "#1D9E75";
+      return `<div class="arc-node${{reordered ? " st-warn" : ""}}" data-para="${{m.paraIndex}}" draggable="true">
+        <div class="ring">${{reordered ? RING_ICON.warn : ""}}</div>
+        <div class="alabel">${{escapeHtml(m.component)}}${{reordered ? '<br><span style="color:#EF9F27">out of order</span>' : ""}}</div>
+      </div>`;
+    }});
+
+    const matchedNames = new Set(matched.filter(m => m.component).map(m => m.component));
+    const missingHtml = (COMPONENTS_BY_CLUSTER[cid] || [])
+      .filter(name => !matchedNames.has(name))
+      .map(name => `
+        <div class="arc-node missing-component">
+          <div class="ring"></div>
+          <div class="alabel">${{escapeHtml(name)}}<br><span>not in draft</span></div>
+        </div>`);
+
+    const parts = nodesHtml.concat(missingHtml);
+    arcEl.innerHTML = parts.length
+      ? parts.map((html, i) => i === 0 ? html : '<div class="arc-connector"></div>' + html).join("")
+      : '<div class="arc-empty">Start writing to see the component chain.</div>';
+
+    paintComponentColors(colorMap);
+    attachLiveArcHandlers();
+  }}
+
+  function attachLiveArcHandlers() {{
+    document.querySelectorAll('.arc-node[data-para]').forEach(el => {{
+      el.addEventListener("click", () => {{
+        const idx = parseInt(el.dataset.para, 10);
+        const m = liveOrder.find(x => x.paraIndex === idx);
+        if (!m) return;
+        const ta = document.getElementById("draftText");
+        ta.focus();
+        ta.setSelectionRange(m.start, m.end);
+        const lineNum = ta.value.slice(0, m.start).split("\\n").length;
+        ta.scrollTop = Math.max(0, (lineNum - 3) * 24);
+      }});
+      el.addEventListener("dragstart", () => {{
+        draggedParaIndex = parseInt(el.dataset.para, 10);
+        el.classList.add("dragging");
+      }});
+      el.addEventListener("dragend", () => {{ el.classList.remove("dragging"); }});
+      el.addEventListener("dragover", e => {{ e.preventDefault(); }});
+      el.addEventListener("drop", e => {{
+        e.preventDefault();
+        const targetIndex = parseInt(el.dataset.para, 10);
+        if (draggedParaIndex === null || targetIndex === draggedParaIndex) return;
+        reorderParagraphs(draggedParaIndex, targetIndex);
+        draggedParaIndex = null;
+      }});
+    }});
+  }}
+
+  function reorderParagraphs(fromIdx, toIdx) {{
+    const paragraphs = splitParagraphs(currentDraft()).map(p => p.text);
+    if (fromIdx < 0 || fromIdx >= paragraphs.length || toIdx < 0 || toIdx >= paragraphs.length) return;
+    const [moved] = paragraphs.splice(fromIdx, 1);
+    paragraphs.splice(toIdx, 0, moved);
+    document.getElementById("draftText").value = paragraphs.join("\\n\\n");
+    updateWordCount();
+    renderLiveArc();
+    setStatus("Reordered paragraphs -- draft updated to match.");
+  }}
+
   function renderGauges(score) {{
     const row = document.getElementById("gaugeRow");
     const items = [
@@ -1241,7 +1461,7 @@ def _draft_studio_html(clusters: List[Cluster], schemas: Dict[str, "Schema"]) ->
       // reads as "nothing happened" even though the draft did change.
       document.querySelectorAll(".tool-btn").forEach(b => b.classList.remove("active"));
       document.getElementById("gaugeRow").style.display = "none";
-      if (lastClusterId) renderArc(lastClusterId);
+      renderLiveArc();
       document.getElementById("findings").innerHTML =
         '<div class="empty-state">Draft rewritten (look for [NEEDS REPORTING] tags where the fixer flagged gaps it couldn\\'t fill on its own). The arc and findings above are from the previous version -- run Critique or Check Coverage again to see how the new draft scores.</div>';
       setStatus("Draft rewritten -- re-run a tool above to see how it scores now.");
@@ -1309,6 +1529,7 @@ def _draft_studio_html(clusters: List[Cluster], schemas: Dict[str, "Schema"]) ->
         text = text.replace(/[ \\t]{{2,}}/g, " ").replace(/\\n{{3,}}/g, "\\n\\n").replace(/ +\\n/g, "\\n").trim();
         document.getElementById("draftText").value = text;
         updateWordCount();
+        renderLiveArc();
         setStatus(removed ? `Applied ${{removed}} cut${{removed === 1 ? "" : "s"}}.` : "No cuts applied.");
 
         if (removed) {{
@@ -1430,13 +1651,15 @@ def _draft_studio_html(clusters: List[Cluster], schemas: Dict[str, "Schema"]) ->
       opt.textContent = c.name;
       select.appendChild(opt);
     }});
-    select.addEventListener("change", () => {{
-      if (select.value) renderArc(select.value);
-      else document.getElementById("arc").innerHTML = '<div class="arc-empty">Pick a cluster, or run a tool below, to see this story\\'s component chain.</div>';
+    select.addEventListener("change", renderLiveArc);
+    document.getElementById("draftText").addEventListener("input", () => {{
+      updateWordCount();
+      clearTimeout(liveArcTimer);
+      liveArcTimer = setTimeout(renderLiveArc, 500);
     }});
-    document.getElementById("draftText").addEventListener("input", updateWordCount);
     document.getElementById("targetWords").addEventListener("input", updateWordCount);
     updateWordCount();
+    renderLiveArc();
     loadLedger();
   }}
 
