@@ -337,3 +337,59 @@ class CutsReport:
             suggestions=[CutSuggestion.from_dict(s) for s in d.get("suggestions", [])],
             notes=d.get("notes", ""),
         )
+
+
+@dataclass
+class ToulminItem:
+    """Toulmin-style classification of one schema component's role in the
+    draft's argument: whether its content asserts a claim or supplies the
+    warrant (evidence/reasoning) that backs one, and -- for claims -- whether
+    that support actually exists somewhere in the draft."""
+
+    component_name: str
+    role: str  # "claim" | "warrant" | "narrative"
+    supported: bool = True   # only meaningful when role == "claim"
+    explanation: str = ""
+
+    def to_dict(self) -> Dict[str, Any]:
+        return asdict(self)
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "ToulminItem":
+        return cls(
+            component_name=d.get("component_name", ""),
+            role=d.get("role", "narrative"),
+            supported=d.get("supported", True),
+            explanation=d.get("explanation", ""),
+        )
+
+
+@dataclass
+class ToulminReport:
+    """Full output of the Toulmin argument-map bot: claim/warrant roles for
+    each schema component, plus a summary of unsupported claims (gaps)."""
+
+    draft_path: str
+    cluster_name: str
+    items: List[ToulminItem]
+    summary: str = ""
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "draft_path": self.draft_path,
+            "cluster_name": self.cluster_name,
+            "items": [i.to_dict() for i in self.items],
+            "summary": self.summary,
+        }
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "ToulminReport":
+        return cls(
+            draft_path=d.get("draft_path", ""),
+            cluster_name=d.get("cluster_name", ""),
+            items=[ToulminItem.from_dict(i) for i in d.get("items", [])],
+            summary=d.get("summary", ""),
+        )
+
+    def gap_count(self) -> int:
+        return sum(1 for i in self.items if i.role == "claim" and not i.supported)

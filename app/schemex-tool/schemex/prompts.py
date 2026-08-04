@@ -509,3 +509,62 @@ def build_debate_prompt(
         history_block=history_block if history_block else " (none yet)",
         question=question,
     )
+
+
+# ---------------------------------------------------------------------------
+# Toulmin argument-map bot prompts (claim vs. warrant, gaps in support)
+# ---------------------------------------------------------------------------
+
+TOULMIN_SYSTEM = """You are analyzing a journalist's draft using Toulmin's \
+model of argument: a piece of writing makes CLAIMS (assertions, \
+interpretations, or conclusions presented as true) and backs them with \
+WARRANTS (evidence, data, quoted sources, or reasoning that justifies a \
+claim). Some content is neither -- pure scene-setting or background -- \
+call that NARRATIVE. For each schema component, decide which role the \
+draft's content for that component is mainly playing. If it's a CLAIM, \
+decide whether the draft actually supplies a warrant for it somewhere \
+(not necessarily in the same component) -- an unsupported claim is a real \
+structural weakness a hostile reader would attack first. Be specific and \
+grounded in what the draft actually says; do not invent gaps that aren't \
+there, and do not credit a claim as supported by a warrant that is \
+missing, vague, or merely restates the claim."""
+
+TOULMIN_USER_TEMPLATE = """SCHEMA (cluster: "{cluster_name}"):
+{schema_block}
+
+DRAFT:
+---
+{draft_text}
+---
+
+For EVERY component in the schema, classify the draft's content for that \
+component:
+- "claim": an assertion, interpretation, or conclusion presented as true
+- "warrant": evidence, data, a quoted source, or reasoning that justifies a claim
+- "narrative": scene-setting or background that doesn't itself assert or support anything
+
+If the role is "claim", set "supported" to true only if the draft actually \
+supplies a real warrant for it (anywhere in the draft, not just this \
+component) -- otherwise false. "supported" is meaningless for "warrant" and \
+"narrative" roles; just set it to true for those.
+
+Return a JSON object shaped like:
+{{
+  "items": [
+    {{
+      "component_name": "Component name (must match schema exactly)",
+      "role": "claim" | "warrant" | "narrative",
+      "supported": true | false,
+      "explanation": "1-2 sentences: what the draft says here, and if it's a claim, what warrant (or lack of one) backs it and where"
+    }}
+  ],
+  "summary": "2-3 sentences on the most important unsupported claim(s) to fix, or confirmation the argument is well-supported"
+}}"""
+
+
+def build_toulmin_prompt(schema: "Schema", draft_text: str, cluster_name: str) -> str:
+    return TOULMIN_USER_TEMPLATE.format(
+        cluster_name=cluster_name,
+        schema_block=schema.as_prompt_block(),
+        draft_text=draft_text.strip(),
+    )

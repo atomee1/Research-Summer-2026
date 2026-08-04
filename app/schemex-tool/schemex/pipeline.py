@@ -586,3 +586,38 @@ def run_cuts(
     print(f"  -> {len(suggestions)} cut suggestions "
           f"({sum(s.word_count for s in suggestions)} words if all applied)")
     return report
+
+
+# ---------------------------------------------------------------------------
+# Stage 9: Toulmin argument-map bot -- claim vs. warrant, gaps in support
+# ---------------------------------------------------------------------------
+
+def run_toulmin(
+    client: ClaudeClient,
+    draft_path: str,
+    draft_text: str,
+    schema: Schema,
+    cluster: Cluster,
+) -> "ToulminReport":
+    """Classify each schema component's content as a claim, a warrant, or
+    narrative, and flag claims the draft never actually backs up.
+    """
+    from .models import ToulminItem, ToulminReport
+    from .prompts import TOULMIN_SYSTEM, build_toulmin_prompt
+
+    print(f"[toulmin] mapping argument structure of '{draft_path}' against "
+          f"schema '{cluster.name}' ...")
+
+    prompt = build_toulmin_prompt(schema, draft_text, cluster.name)
+    raw = client.complete_json(TOULMIN_SYSTEM, prompt)
+
+    items = [ToulminItem.from_dict(i) for i in raw.get("items", [])]
+    report = ToulminReport(
+        draft_path=draft_path,
+        cluster_name=cluster.name,
+        items=items,
+        summary=raw.get("summary", ""),
+    )
+    print(f"  -> {report.gap_count()} unsupported claim(s) of "
+          f"{sum(1 for i in items if i.role == 'claim')} claim(s)")
+    return report
