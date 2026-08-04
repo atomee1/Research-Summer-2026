@@ -803,6 +803,23 @@ def _draft_studio_html(clusters: List[Cluster], schemas: Dict[str, "Schema"]) ->
   .chat-input-row button {{ background: #7F77DD; color: #100E1C; border: none; border-radius: 8px; padding: 0 15px; font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; }}
   .chat-input-row button:hover {{ background: #8f88e8; }}
 
+  .ledger-card {{ margin-top: 22px; }}
+  .ledger-sub {{ font-size: 12.5px; color: #5F5E5A; margin-bottom: 14px; line-height: 1.5; max-width: 80ch; }}
+  .ledger-list {{ max-height: 340px; overflow-y: auto; }}
+  .ledger-row {{ border-top: 1px solid #242423; padding: 10px 0; }}
+  .ledger-row:first-child {{ border-top: none; }}
+  .ledger-row-head {{ display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 12.5px; color: #888780; }}
+  .ledger-badge {{ font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; padding: 2px 8px; border-radius: 20px; }}
+  .ledger-badge-fix {{ background: #201F3A; color: #7F77DD; }}
+  .ledger-badge-cut {{ background: #2E2008; color: #EF9F27; }}
+  .ledger-time {{ color: #5F5E5A; }}
+  .ledger-words {{ margin-left: auto; font-variant-numeric: tabular-nums; }}
+  .ledger-detail {{ font-size: 13px; color: #b4b2a9; margin-top: 5px; }}
+  .ledger-expand {{ margin-top: 6px; }}
+  .ledger-expand summary {{ font-size: 12px; color: #7F77DD; cursor: pointer; }}
+  .ledger-text-label {{ font-size: 10.5px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: #5F5E5A; margin: 8px 0 3px; }}
+  .ledger-text {{ font-size: 12.5px; color: #c2c0b6; line-height: 1.55; background: #242423; border-radius: 6px; padding: 8px 10px; white-space: pre-wrap; }}
+
   .thinking {{ display: inline-flex; gap: 3px; align-items: center; }}
   .thinking span {{ width: 5px; height: 5px; border-radius: 50%; background: #5F5E5A; animation: studio-pulse 1.1s infinite ease-in-out; }}
   .thinking span:nth-child(2) {{ animation-delay: 0.15s; }}
@@ -892,6 +909,12 @@ def _draft_studio_html(clusters: List[Cluster], schemas: Dict[str, "Schema"]) ->
       </div>
     </div>
   </div>
+
+  <div class="s-card ledger-card">
+    <div class="s-eyebrow">Edit ledger</div>
+    <p class="ledger-sub">Add-only log of every automated edit this tool has made to a draft in this run -- each Fixer rewrite and applied cut, with before/after text. Persists across restarts; nothing here is ever overwritten or removed.</p>
+    <div class="ledger-list" id="ledgerList"><div class="empty-state" id="ledgerEmpty">No automated edits logged yet -- use Apply Fixer or Suggest Cuts, then check "Apply checked cuts".</div></div>
+  </div>
 </div>
 
 <script>
@@ -913,10 +936,54 @@ def _draft_studio_html(clusters: List[Cluster], schemas: Dict[str, "Schema"]) ->
 
   let lastCritique = null;
   let lastClusterId = null;
+  let lastCutsSuggestions = [];
   let chatHistory = [];
 
   function escapeHtml(s) {{
     return (s == null ? "" : String(s)).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  }}
+
+  // ---- edit ledger: add-only log of automated edits (fixer/cuts) ----
+  function ledgerRowHtml(entry) {{
+    const when = new Date(entry.timestamp).toLocaleString();
+    return `
+      <div class="ledger-row">
+        <div class="ledger-row-head">
+          <span class="ledger-badge ledger-badge-${{entry.action}}">${{entry.action}}</span>
+          <span class="ledger-time">${{when}}</span>
+          <span class="ledger-words">${{entry.before_words}} &rarr; ${{entry.after_words}} words</span>
+        </div>
+        <div class="ledger-detail">${{escapeHtml(entry.detail)}}</div>
+        <details class="ledger-expand">
+          <summary>View before / after text</summary>
+          <div class="ledger-text-label">Before</div>
+          <div class="ledger-text">${{escapeHtml(entry.before_text)}}</div>
+          <div class="ledger-text-label">After</div>
+          <div class="ledger-text">${{escapeHtml(entry.after_text)}}</div>
+        </details>
+      </div>`;
+  }}
+
+  async function loadLedger() {{
+    try {{
+      const entries = await (await fetch("/api/ledger")).json();
+      if (!entries || !entries.length) return;
+      document.getElementById("ledgerList").innerHTML =
+        entries.slice().reverse().map(ledgerRowHtml).join("");
+    }} catch (e) {{
+      // Non-fatal -- an empty/missing ledger just means no automated edits yet.
+    }}
+  }}
+
+  async function logLedgerEntry(entry) {{
+    try {{
+      const saved = await postJSON("/api/ledger", entry);
+      const empty = document.getElementById("ledgerEmpty");
+      if (empty) empty.remove();
+      document.getElementById("ledgerList").insertAdjacentHTML("afterbegin", ledgerRowHtml(saved));
+    }} catch (e) {{
+      // Don't let ledger logging failures block the actual edit the user made.
+    }}
   }}
 
   function setStatus(msg, isError) {{
@@ -1157,9 +1224,11 @@ def _draft_studio_html(clusters: List[Cluster], schemas: Dict[str, "Schema"]) ->
   // ---- Apply Fixer ----
   btnFix.addEventListener("click", async function () {{
     if (!lastCritique) {{ setStatus("Run a critique first.", true); return; }}
+    const critiqueForLedger = lastCritique;
+    const beforeText = currentDraft();
     setStatus("Rewriting draft...");
     try {{
-      const result = await postJSON("/api/fix", {{ draft_text: currentDraft(), critique: lastCritique }});
+      const result = await postJSON("/api/fix", {{ draft_text: beforeText, critique: critiqueForLedger }});
       document.getElementById("draftText").value = result.fixed_draft;
       updateWordCount();
       btnFix.disabled = true;
@@ -1175,6 +1244,20 @@ def _draft_studio_html(clusters: List[Cluster], schemas: Dict[str, "Schema"]) ->
       document.getElementById("findings").innerHTML =
         '<div class="empty-state">Draft rewritten (look for [NEEDS REPORTING] tags where the fixer flagged gaps it couldn\\'t fill on its own). The arc and findings above are from the previous version -- run Critique or Check Coverage again to see how the new draft scores.</div>';
       setStatus("Draft rewritten -- re-run a tool above to see how it scores now.");
+
+      const issueCount = critiqueForLedger.structural_issues.length
+        + critiqueForLedger.argumentative_issues.length
+        + critiqueForLedger.prose_issues.length;
+      logLedgerEntry({{
+        action: "fix",
+        cluster_id: lastClusterId,
+        cluster_name: (CLUSTERS.find(c => c.id === lastClusterId) || {{}}).name || "",
+        before_text: beforeText,
+        after_text: result.fixed_draft,
+        before_words: wordCount(beforeText),
+        after_words: wordCount(result.fixed_draft),
+        detail: `Addressed ${{issueCount}} critique issue${{issueCount === 1 ? "" : "s"}} -- verdict was: "${{critiqueForLedger.verdict}}"`,
+      }});
     }} catch (e) {{
       setStatus("Fixer failed: " + e.message, true);
     }}
@@ -1194,6 +1277,7 @@ def _draft_studio_html(clusters: List[Cluster], schemas: Dict[str, "Schema"]) ->
       setStatus(`Matched cluster: ${{result.cluster_name}}`);
 
       const c = result.cuts;
+      lastCutsSuggestions = c.suggestions;
       if (c.over_by === 0) {{
         document.getElementById("findings").innerHTML =
           `<div class="empty-state">${{escapeHtml(c.notes || "Already at or under the target word count.")}}</div>`;
@@ -1213,16 +1297,35 @@ def _draft_studio_html(clusters: List[Cluster], schemas: Dict[str, "Schema"]) ->
         <button class="apply-btn" id="applyCuts">Apply checked cuts</button>
       `;
       document.getElementById("applyCuts").addEventListener("click", function () {{
-        let text = currentDraft();
+        const beforeText = currentDraft();
+        let text = beforeText;
         let removed = 0;
+        const appliedQuotes = [];
         document.querySelectorAll(".cut-checkbox:checked").forEach(cb => {{
           const q = decodeURIComponent(cb.dataset.quote);
-          if (q && text.includes(q)) {{ text = text.replace(q, ""); removed++; }}
+          if (q && text.includes(q)) {{ text = text.replace(q, ""); removed++; appliedQuotes.push(q); }}
         }});
         text = text.replace(/[ \\t]{{2,}}/g, " ").replace(/\\n{{3,}}/g, "\\n\\n").replace(/ +\\n/g, "\\n").trim();
         document.getElementById("draftText").value = text;
         updateWordCount();
         setStatus(removed ? `Applied ${{removed}} cut${{removed === 1 ? "" : "s"}}.` : "No cuts applied.");
+
+        if (removed) {{
+          const appliedDetails = appliedQuotes.map(q => {{
+            const s = lastCutsSuggestions.find(s => s.quote === q);
+            return s ? `"${{s.quote}}" -- ${{s.reason}}` : `"${{q}}"`;
+          }});
+          logLedgerEntry({{
+            action: "cut",
+            cluster_id: lastClusterId,
+            cluster_name: (CLUSTERS.find(cl => cl.id === lastClusterId) || {{}}).name || "",
+            before_text: beforeText,
+            after_text: text,
+            before_words: wordCount(beforeText),
+            after_words: wordCount(text),
+            detail: `${{removed}} cut${{removed === 1 ? "" : "s"}} applied: ` + appliedDetails.join("; "),
+          }});
+        }}
       }});
     }} catch (e) {{
       setStatus("Suggest cuts failed: " + e.message, true);
@@ -1284,6 +1387,7 @@ def _draft_studio_html(clusters: List[Cluster], schemas: Dict[str, "Schema"]) ->
     document.getElementById("draftText").addEventListener("input", updateWordCount);
     document.getElementById("targetWords").addEventListener("input", updateWordCount);
     updateWordCount();
+    loadLedger();
   }}
 
   if (document.readyState === "loading") {{
