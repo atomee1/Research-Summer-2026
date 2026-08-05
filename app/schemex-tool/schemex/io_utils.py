@@ -983,6 +983,7 @@ def _draft_studio_html(clusters: List[Cluster], schemas: Dict[str, "Schema"]) ->
   let liveOrder = [];
   let liveArcTimer = null;
   let draggedParaIndex = null;
+  let lastFocusedClusterId = null;
 
   function escapeHtml(s) {{
     return (s == null ? "" : String(s)).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -1137,6 +1138,26 @@ def _draft_studio_html(clusters: List[Cluster], schemas: Dict[str, "Schema"]) ->
     arcEl.innerHTML = parts.join("");
   }}
 
+  // ---- tie the top network graph into the same live sync ----
+  function focusClusterInGraph(clusterId) {{
+    try {{
+      if (typeof network === "undefined" || typeof data === "undefined") return;
+    }} catch (e) {{ return; }}
+    if (!clusterId || clusterId === lastFocusedClusterId) return;
+    if (!data.nodes.get(clusterId)) return;
+    lastFocusedClusterId = clusterId;
+    network.focus(clusterId, {{ scale: 1.15, animation: {{ duration: 500, easingFunction: "easeInOutQuad" }} }});
+  }}
+
+  function jumpToParagraph(m) {{
+    const ta = document.getElementById("draftText");
+    ta.scrollIntoView({{ behavior: "smooth", block: "center" }});
+    ta.focus();
+    ta.setSelectionRange(m.start, m.end);
+    const lineNum = ta.value.slice(0, m.start).split("\\n").length;
+    ta.scrollTop = Math.max(0, (lineNum - 3) * 24);
+  }}
+
   // ---- live graph<->text sync: paragraphs <-> story arc ----
   // A lightweight, purely local heuristic (keyword overlap) so the arc can
   // redraw on every keystroke without waiting on an LLM round-trip. It's
@@ -1233,6 +1254,7 @@ def _draft_studio_html(clusters: List[Cluster], schemas: Dict[str, "Schema"]) ->
 
     const matched = matchParagraphs(paragraphs, cid);
     liveOrder = matched;
+    focusClusterInGraph(cid);
 
     const cluster = CLUSTERS.find(c => c.id === cid);
     document.getElementById("arcTitle").textContent = cluster ? `Story arc -- ${{cluster.name}} (live)` : "Story arc (live)";
@@ -1279,12 +1301,7 @@ def _draft_studio_html(clusters: List[Cluster], schemas: Dict[str, "Schema"]) ->
       el.addEventListener("click", () => {{
         const idx = parseInt(el.dataset.para, 10);
         const m = liveOrder.find(x => x.paraIndex === idx);
-        if (!m) return;
-        const ta = document.getElementById("draftText");
-        ta.focus();
-        ta.setSelectionRange(m.start, m.end);
-        const lineNum = ta.value.slice(0, m.start).split("\\n").length;
-        ta.scrollTop = Math.max(0, (lineNum - 3) * 24);
+        if (m) jumpToParagraph(m);
       }});
       el.addEventListener("dragstart", () => {{
         draggedParaIndex = parseInt(el.dataset.para, 10);
@@ -1367,6 +1384,7 @@ def _draft_studio_html(clusters: List[Cluster], schemas: Dict[str, "Schema"]) ->
       const result = await postJSON("/api/critique", {{ draft_text: draft, cluster_id: currentClusterId() }});
       lastCritique = result.critique;
       lastClusterId = result.cluster_id;
+      focusClusterInGraph(result.cluster_id);
       btnFix.disabled = false;
       setStatus(`Matched cluster: ${{result.cluster_name}}`);
 
@@ -1415,6 +1433,7 @@ def _draft_studio_html(clusters: List[Cluster], schemas: Dict[str, "Schema"]) ->
     try {{
       const result = await postJSON("/api/coverage", {{ draft_text: draft, cluster_id: currentClusterId() }});
       lastClusterId = result.cluster_id;
+      focusClusterInGraph(result.cluster_id);
       setStatus(`Matched cluster: ${{result.cluster_name}}`);
       document.getElementById("gaugeRow").style.display = "none";
 
@@ -1495,6 +1514,7 @@ def _draft_studio_html(clusters: List[Cluster], schemas: Dict[str, "Schema"]) ->
     try {{
       const result = await postJSON("/api/cuts", {{ draft_text: draft, target_words: target, cluster_id: currentClusterId() }});
       lastClusterId = result.cluster_id;
+      focusClusterInGraph(result.cluster_id);
       setStatus(`Matched cluster: ${{result.cluster_name}}`);
 
       const c = result.cuts;
@@ -1563,6 +1583,7 @@ def _draft_studio_html(clusters: List[Cluster], schemas: Dict[str, "Schema"]) ->
     try {{
       const result = await postJSON("/api/toulmin", {{ draft_text: draft, cluster_id: currentClusterId() }});
       lastClusterId = result.cluster_id;
+      focusClusterInGraph(result.cluster_id);
       setStatus(`Matched cluster: ${{result.cluster_name}}`);
       document.getElementById("gaugeRow").style.display = "none";
 
@@ -1631,6 +1652,7 @@ def _draft_studio_html(clusters: List[Cluster], schemas: Dict[str, "Schema"]) ->
         history: chatHistory,
       }});
       lastClusterId = result.cluster_id;
+      focusClusterInGraph(result.cluster_id);
       chatHistory.push({{ question: question, advocate: result.advocate, skeptic: result.skeptic }});
       renderChat();
       setStatus("");
@@ -1641,6 +1663,33 @@ def _draft_studio_html(clusters: List[Cluster], schemas: Dict[str, "Schema"]) ->
 
   document.getElementById("btnChatSend").addEventListener("click", sendChat);
   document.getElementById("chatInput").addEventListener("keydown", e => {{ if (e.key === "Enter") sendChat(); }});
+
+  // Clicking a node in the top graph drives the draft view below, the other
+  // half of the merge: a cluster node switches Draft Studio to that
+  // cluster, a component node jumps to the paragraph currently matched to
+  // it (if any). Registered as an additional listener on top of the base
+  // graph script's own click handler (which still opens the sidebar) --
+  // vis.js supports multiple listeners per event, so both run.
+  try {{
+    if (typeof network !== "undefined") {{
+      network.on("click", function (params) {{
+        if (!params.nodes.length) return;
+        const nodeId = params.nodes[0];
+        const d = (typeof DETAILS !== "undefined") ? DETAILS[nodeId] : null;
+        if (!d) return;
+        if (d.type === "cluster") {{
+          const select = document.getElementById("clusterSelect");
+          if (select && select.value !== nodeId) {{
+            select.value = nodeId;
+            renderLiveArc();
+          }}
+        }} else if (d.type === "component") {{
+          const m = liveOrder.find(x => x.component === d.name);
+          if (m) jumpToParagraph(m);
+        }}
+      }});
+    }}
+  }} catch (e) {{}}
 
   // ---- init ----
   function init() {{
