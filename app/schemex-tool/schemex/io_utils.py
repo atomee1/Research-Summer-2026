@@ -361,7 +361,7 @@ class RunState:
     background: #0f0f10;
   }}
   #sidebar {{
-    width: 320px;
+    width: 280px;
     border-left: 1px solid #2c2c2a;
     background: #1a1a1c;
     padding: 20px;
@@ -480,12 +480,14 @@ class RunState:
     <span><span class="dot" style="background:#EF9F27"></span>Refined</span>
   </div>
 </header>
+<!-- SCHEMEX_WORKBENCH_HEAD -->
 <div class="main">
   <div id="graph"></div>
   <div id="sidebar" class="empty">
     <div>Click any node<br>to see details</div>
   </div>
 </div>
+<!-- SCHEMEX_WORKBENCH_SLOT -->
 <footer>Drag to pan · Scroll to zoom · Click a node to inspect · Double-click to focus</footer>
 
 <script>
@@ -590,7 +592,16 @@ network.on("doubleClick", params => {{
 </html>"""
 
         if interactive:
-            html = html.replace("</body>", _draft_studio_html(self.clusters, self.schemas) + "\n</body>")
+            head_html, core_and_chat_html, ledger_and_script_html = _draft_studio_html(
+                self.clusters, self.schemas
+            )
+            html = html.replace("<!-- SCHEMEX_WORKBENCH_HEAD -->", head_html)
+            html = html.replace('<div class="main">', '<div class="workbench" id="workbench">\n<div class="main">')
+            html = html.replace(
+                "<!-- SCHEMEX_WORKBENCH_SLOT -->",
+                core_and_chat_html + "\n</div><!-- /workbench -->",
+            )
+            html = html.replace("</body>", ledger_and_script_html + "\n</body>")
 
         return html
 
@@ -649,7 +660,9 @@ def _keywords(text: str) -> List[str]:
     return sorted({w for w in words if len(w) > 2 and w not in _STOPWORDS})
 
 
-def _draft_studio_html(clusters: List[Cluster], schemas: Dict[str, "Schema"]) -> str:
+def _draft_studio_html(
+    clusters: List[Cluster], schemas: Dict[str, "Schema"]
+) -> "tuple[str, str, str]":
     clusters_json = json.dumps(
         [{"id": c.id, "name": c.name} for c in clusters], indent=2
     )
@@ -674,37 +687,70 @@ def _draft_studio_html(clusters: List[Cluster], schemas: Dict[str, "Schema"]) ->
     }
     component_keywords_json = json.dumps(component_keywords_by_cluster, indent=2)
 
-    return f"""
+    # Node-id lookup (component name -> vis.js node id) so the live matcher
+    # can highlight the actual graph nodes it maps to, not just the arc.
+    component_ids_by_cluster = {
+        cid: {comp.name: f"{cid}__comp_{i}" for i, comp in enumerate(schema.components)}
+        for cid, schema in schemas.items()
+    }
+    component_ids_json = json.dumps(component_ids_by_cluster, indent=2)
+
+    full = f"""
 <style>
-  .studio {{
-    padding: 40px 28px 80px;
-    max-width: 1500px;
+  .workbench-head {{
+    padding: 30px 22px 6px;
+    max-width: 1600px;
     margin: 0 auto;
   }}
-  .studio-head {{
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    gap: 20px;
-    margin-bottom: 26px;
-    flex-wrap: wrap;
-  }}
-  .studio-head h2 {{
+  .workbench-head h2 {{
     font-family: "Playfair Display", Georgia, serif;
     font-size: 27px;
     font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 10px;
   }}
-  .studio-head p {{
+  .workbench-head p {{
     color: #888780;
     font-size: 14px;
-    max-width: 48ch;
+    max-width: 80ch;
+    margin-top: 6px;
   }}
-  .studio-grid {{
+  .live-dot {{
+    display: inline-block;
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: #1D9E75;
+    animation: live-pulse 1.8s infinite ease-in-out;
+  }}
+  @keyframes live-pulse {{
+    0%, 100% {{ box-shadow: 0 0 0 0 rgba(29,158,117,0.55); opacity: 1; }}
+    50% {{ box-shadow: 0 0 0 6px rgba(29,158,117,0); opacity: 0.7; }}
+  }}
+  .workbench {{
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 380px;
-    gap: 22px;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 340px;
+    gap: 18px;
+    padding: 14px 22px 20px;
+    max-width: 1600px;
+    margin: 0 auto;
     align-items: start;
   }}
+  .workbench .main {{
+    position: sticky;
+    top: 16px;
+    height: 560px;
+    border: 1px solid #2c2c2a;
+    border-radius: 12px;
+    overflow: hidden;
+    border-bottom: none;
+  }}
+  .studio-below {{
+    padding: 0 22px 60px;
+    max-width: 1600px;
+    margin: 0 auto;
+  }}
+  .studio-core-col {{ min-width: 0; }}
   .s-card {{
     background: #1a1a1c;
     border: 1px solid #2c2c2a;
@@ -789,6 +835,12 @@ def _draft_studio_html(clusters: List[Cluster], schemas: Dict[str, "Schema"]) ->
   .arc-node.missing-component {{ opacity: 0.45; }}
   .arc-node.missing-component .ring {{ border-style: dashed; }}
   .arc-live-hint {{ font-size: 11.5px; color: #5F5E5A; margin: -8px 0 12px; }}
+  .arc-node {{ animation: arc-pop 0.35s ease; }}
+  @keyframes arc-pop {{
+    0% {{ transform: scale(0.82); opacity: 0; }}
+    60% {{ transform: scale(1.04); opacity: 1; }}
+    100% {{ transform: scale(1); opacity: 1; }}
+  }}
 
   .gauge-row {{ display: flex; gap: 24px; margin-top: 18px; padding-top: 16px; border-top: 1px solid #242423; }}
   .gauge {{ display: flex; align-items: center; gap: 11px; }}
@@ -865,27 +917,27 @@ def _draft_studio_html(clusters: List[Cluster], schemas: Dict[str, "Schema"]) ->
   .thinking span:nth-child(3) {{ animation-delay: 0.3s; }}
   @keyframes studio-pulse {{ 0%, 80%, 100% {{ opacity: 0.25; }} 40% {{ opacity: 1; }} }}
 
-  @media (max-width: 1000px) {{
-    .studio-grid {{ grid-template-columns: 1fr; }}
+  @media (max-width: 1300px) {{
+    .workbench {{ grid-template-columns: 1fr; }}
+    .workbench .main {{ position: static; height: 420px; }}
     .chat-card {{ height: 440px; position: static; }}
     .instrument-row {{ grid-template-columns: 1fr; }}
     .dial-card {{ flex-direction: row; justify-content: flex-start; gap: 16px; }}
   }}
   @media (prefers-reduced-motion: reduce) {{
     .thinking span {{ animation-duration: 0.001ms !important; }}
+    .live-dot {{ animation: none; }}
+    .arc-node {{ animation: none; }}
   }}
 </style>
 
-<div class="studio">
-  <div class="studio-head">
-    <div>
-      <h2>Draft Studio</h2>
-      <p>Analyze your draft against the schema, trim it to length, and pressure-test it before you file.</p>
-    </div>
-  </div>
+<div class="workbench-head">
+  <h2>Draft Studio <span class="live-dot" title="The graph and your draft stay in sync as you type"></span></h2>
+  <p>Edit your draft below and watch the graph react live -- the matched cluster and components highlight as you type, and dragging a story-arc node reorders the draft itself. Run Critique, Check Coverage, Apply Fixer, Suggest Cuts, or Map Argument for the model's own graded take.</p>
+</div>
+##SCHEMEX_SPLIT_A##
 
-  <div class="studio-grid">
-    <div>
+<div class="studio-core-col">
       <div class="instrument-row">
         <div>
           <div class="cluster-pick">
@@ -949,8 +1001,9 @@ def _draft_studio_html(clusters: List[Cluster], schemas: Dict[str, "Schema"]) ->
         <button id="btnChatSend">Ask</button>
       </div>
     </div>
-  </div>
+##SCHEMEX_SPLIT_B##
 
+<div class="studio-below">
   <div class="s-card ledger-card">
     <div class="s-eyebrow">Edit ledger</div>
     <p class="ledger-sub">Add-only log of every automated edit this tool has made to a draft in this run -- each Fixer rewrite and applied cut, with before/after text. Persists across restarts; nothing here is ever overwritten or removed.</p>
@@ -964,6 +1017,7 @@ def _draft_studio_html(clusters: List[Cluster], schemas: Dict[str, "Schema"]) ->
   const CLUSTERS = {clusters_json};
   const COMPONENTS_BY_CLUSTER = {components_by_cluster_json};
   const COMPONENT_KEYWORDS_BY_CLUSTER = {component_keywords_json};
+  const COMPONENT_IDS_BY_CLUSTER = {component_ids_json};
   const SEV_COLOR = {{ critical: "#E0584A", major: "#EF9F27", minor: "#7F77DD" }};
   const SEV_STATUS = {{ critical: "bad", major: "warn", minor: "minor" }};
   const COV_COLOR = {{ present: "#1D9E75", weak: "#EF9F27", missing: "#E0584A" }};
@@ -984,6 +1038,8 @@ def _draft_studio_html(clusters: List[Cluster], schemas: Dict[str, "Schema"]) ->
   let liveArcTimer = null;
   let draggedParaIndex = null;
   let lastFocusedClusterId = null;
+  let liveCid = null;
+  let currentGraphSelection = [];
 
   function escapeHtml(s) {{
     return (s == null ? "" : String(s)).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -1149,6 +1205,14 @@ def _draft_studio_html(clusters: List[Cluster], schemas: Dict[str, "Schema"]) ->
     network.focus(clusterId, {{ scale: 1.15, animation: {{ duration: 500, easingFunction: "easeInOutQuad" }} }});
   }}
 
+  function selectGraphNodes(ids) {{
+    try {{
+      if (typeof network === "undefined" || typeof data === "undefined") return;
+    }} catch (e) {{ return; }}
+    const valid = (ids || []).filter(id => id && data.nodes.get(id));
+    try {{ network.selectNodes(valid); }} catch (e) {{}}
+  }}
+
   function jumpToParagraph(m) {{
     const ta = document.getElementById("draftText");
     ta.scrollIntoView({{ behavior: "smooth", block: "center" }});
@@ -1239,6 +1303,9 @@ def _draft_studio_html(clusters: List[Cluster], schemas: Dict[str, "Schema"]) ->
       arcEl.innerHTML = '<div class="arc-empty">Pick a cluster, or run a tool below, to see this story\\'s component chain.</div>';
       hint.style.display = "none";
       liveOrder = [];
+      liveCid = null;
+      currentGraphSelection = [];
+      selectGraphNodes([]);
       return;
     }}
 
@@ -1249,12 +1316,21 @@ def _draft_studio_html(clusters: List[Cluster], schemas: Dict[str, "Schema"]) ->
       arcEl.innerHTML = '<div class="arc-empty">Could not match this draft to a cluster yet -- keep writing, or pick one above.</div>';
       hint.style.display = "none";
       liveOrder = [];
+      liveCid = null;
+      currentGraphSelection = [];
+      selectGraphNodes([]);
       return;
     }}
 
     const matched = matchParagraphs(paragraphs, cid);
     liveOrder = matched;
+    liveCid = cid;
     focusClusterInGraph(cid);
+    const idsByName = COMPONENT_IDS_BY_CLUSTER[cid] || {{}};
+    currentGraphSelection = [cid].concat(
+      matched.filter(m => m.component).map(m => idsByName[m.component]).filter(Boolean)
+    );
+    selectGraphNodes(currentGraphSelection);
 
     const cluster = CLUSTERS.find(c => c.id === cid);
     document.getElementById("arcTitle").textContent = cluster ? `Story arc -- ${{cluster.name}} (live)` : "Story arc (live)";
@@ -1303,6 +1379,15 @@ def _draft_studio_html(clusters: List[Cluster], schemas: Dict[str, "Schema"]) ->
         const m = liveOrder.find(x => x.paraIndex === idx);
         if (m) jumpToParagraph(m);
       }});
+      el.addEventListener("mouseenter", () => {{
+        const idx = parseInt(el.dataset.para, 10);
+        const m = liveOrder.find(x => x.paraIndex === idx);
+        if (m && m.component && liveCid) {{
+          const id = (COMPONENT_IDS_BY_CLUSTER[liveCid] || {{}})[m.component];
+          if (id) selectGraphNodes([id]);
+        }}
+      }});
+      el.addEventListener("mouseleave", () => {{ selectGraphNodes(currentGraphSelection); }});
       el.addEventListener("dragstart", () => {{
         draggedParaIndex = parseInt(el.dataset.para, 10);
         el.classList.add("dragging");
@@ -1719,6 +1804,10 @@ def _draft_studio_html(clusters: List[Cluster], schemas: Dict[str, "Schema"]) ->
   }}
 }})();
 </script>"""
+
+    head_html, rest = full.split("##SCHEMEX_SPLIT_A##", 1)
+    core_and_chat_html, ledger_and_script_html = rest.split("##SCHEMEX_SPLIT_B##", 1)
+    return head_html, core_and_chat_html, ledger_and_script_html
 
 
 # ---------------------------------------------------------------------------
