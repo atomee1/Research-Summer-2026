@@ -835,6 +835,14 @@ def _draft_studio_html(
   .arc-node.missing-component {{ opacity: 0.45; }}
   .arc-node.missing-component .ring {{ border-style: dashed; }}
   .arc-live-hint {{ font-size: 11.5px; color: #5F5E5A; margin: -8px 0 12px; }}
+  .search-toggle {{
+    display: flex; align-items: center; gap: 7px; cursor: pointer;
+    font-size: 12px; color: #888780; margin-bottom: 14px; user-select: none;
+  }}
+  .search-toggle input {{ accent-color: #7F77DD; width: 13px; height: 13px; cursor: pointer; }}
+  .search-sources {{ margin-top: 12px; padding-top: 10px; border-top: 1px dashed #2c2c2a; font-size: 12px; color: #5F5E5A; }}
+  .search-sources a {{ color: #7F77DD; text-decoration: none; }}
+  .search-sources a:hover {{ text-decoration: underline; }}
   .arc-node {{ animation: arc-pop 0.35s ease; }}
   @keyframes arc-pop {{
     0% {{ transform: scale(0.82); opacity: 0; }}
@@ -980,6 +988,10 @@ def _draft_studio_html(
             <button class="tool-btn" id="btnToulmin">Map Argument</button>
           </div>
         </div>
+        <label class="search-toggle" title="Lets the model search the web while it works -- checking names, dates, and claims against live sources. Adds latency and a small per-search cost on top of normal usage.">
+          <input type="checkbox" id="searchToggle">
+          <span>Web search (beta) -- ground answers in live sources</span>
+        </label>
         <div class="arc-live-hint" id="arcLiveHint" style="display:none">Nodes follow your draft's current paragraph order &middot; drag a node to reorder the draft &middot; click a node to jump to that paragraph &middot; amber = out of the schema's usual order</div>
         <div class="arc" id="arc"><div class="arc-empty">Pick a cluster, or run a tool below, to see this story's component chain.</div></div>
         <div class="gauge-row" id="gaugeRow" style="display:none"></div>
@@ -1097,6 +1109,18 @@ def _draft_studio_html(
   function currentDraft() {{ return document.getElementById("draftText").value.trim(); }}
   function currentClusterId() {{ return document.getElementById("clusterSelect").value || null; }}
   function wordCount(text) {{ return (text.match(/\\S+/g) || []).length; }}
+  function searchEnabled() {{ return document.getElementById("searchToggle").checked; }}
+
+  function searchSourcesHtml(sources) {{
+    if (!sources || !sources.length) return "";
+    const links = sources.map(s => {{
+      const label = escapeHtml(s.title || s.url || "source");
+      return s.url
+        ? `<a href="${{escapeHtml(s.url)}}" target="_blank" rel="noopener">${{label}}</a>`
+        : label;
+    }}).join(", ");
+    return `<div class="search-sources">Searched the web -- ${{links}}</div>`;
+  }}
 
   function colorForRatio(ratio) {{
     if (ratio <= 1) return "#1D9E75";
@@ -1466,7 +1490,7 @@ def _draft_studio_html(
     setActiveTool("btnCritique");
     setStatus("Running critique...");
     try {{
-      const result = await postJSON("/api/critique", {{ draft_text: draft, cluster_id: currentClusterId() }});
+      const result = await postJSON("/api/critique", {{ draft_text: draft, cluster_id: currentClusterId(), use_search: searchEnabled() }});
       lastCritique = result.critique;
       lastClusterId = result.cluster_id;
       focusClusterInGraph(result.cluster_id);
@@ -1480,7 +1504,8 @@ def _draft_studio_html(
         ${{issueListHtml("Structural issues", c.structural_issues)}}
         ${{issueListHtml("Argumentative issues", c.argumentative_issues)}}
         ${{issueListHtml("Prose issues", c.prose_issues)}}
-        ${{(c.strengths && c.strengths.length) ? `<div class="issue-group"><div class="issue-group-title">Strengths</div>${{c.strengths.map(s => `<div class="issue-row" style="border-left-color:#1D9E75">${{escapeHtml(s)}}</div>`).join("")}}</div>` : ""}}`;
+        ${{(c.strengths && c.strengths.length) ? `<div class="issue-group"><div class="issue-group-title">Strengths</div>${{c.strengths.map(s => `<div class="issue-row" style="border-left-color:#1D9E75">${{escapeHtml(s)}}</div>`).join("")}}</div>` : ""}}
+        ${{searchSourcesHtml(result.search_sources)}}`;
 
       renderGauges(c.score);
 
@@ -1516,7 +1541,7 @@ def _draft_studio_html(
     setActiveTool("btnCoverage");
     setStatus("Checking coverage...");
     try {{
-      const result = await postJSON("/api/coverage", {{ draft_text: draft, cluster_id: currentClusterId() }});
+      const result = await postJSON("/api/coverage", {{ draft_text: draft, cluster_id: currentClusterId(), use_search: searchEnabled() }});
       lastClusterId = result.cluster_id;
       focusClusterInGraph(result.cluster_id);
       setStatus(`Matched cluster: ${{result.cluster_name}}`);
@@ -1531,6 +1556,7 @@ def _draft_studio_html(
             <div class="issue-detail">${{escapeHtml(item.explanation)}}</div>
             ${{item.suggestion ? `<div class="issue-quote">${{escapeHtml(item.suggestion)}}</div>` : ""}}
           </div>`).join("")}}
+        ${{searchSourcesHtml(result.search_sources)}}
       `;
 
       const statusByName = {{}};
@@ -1597,7 +1623,7 @@ def _draft_studio_html(
     setActiveTool("btnCuts");
     setStatus("Finding cuts...");
     try {{
-      const result = await postJSON("/api/cuts", {{ draft_text: draft, target_words: target, cluster_id: currentClusterId() }});
+      const result = await postJSON("/api/cuts", {{ draft_text: draft, target_words: target, cluster_id: currentClusterId(), use_search: searchEnabled() }});
       lastClusterId = result.cluster_id;
       focusClusterInGraph(result.cluster_id);
       setStatus(`Matched cluster: ${{result.cluster_name}}`);
@@ -1621,6 +1647,7 @@ def _draft_studio_html(
             </span>
           </label>`).join("")}}</div>
         <button class="apply-btn" id="applyCuts">Apply checked cuts</button>
+        ${{searchSourcesHtml(result.search_sources)}}
       `;
       document.getElementById("applyCuts").addEventListener("click", function () {{
         const beforeText = currentDraft();
@@ -1666,7 +1693,7 @@ def _draft_studio_html(
     setActiveTool("btnToulmin");
     setStatus("Mapping argument structure...");
     try {{
-      const result = await postJSON("/api/toulmin", {{ draft_text: draft, cluster_id: currentClusterId() }});
+      const result = await postJSON("/api/toulmin", {{ draft_text: draft, cluster_id: currentClusterId(), use_search: searchEnabled() }});
       lastClusterId = result.cluster_id;
       focusClusterInGraph(result.cluster_id);
       setStatus(`Matched cluster: ${{result.cluster_name}}`);
@@ -1686,6 +1713,7 @@ def _draft_studio_html(
             <div class="issue-detail">${{escapeHtml(item.explanation)}}</div>
           </div>`;
         }}).join("")}}
+        ${{searchSourcesHtml(result.search_sources)}}
       `;
 
       const statusByName = {{}};
@@ -1717,6 +1745,7 @@ def _draft_studio_html(
       <div class="chat-turn-q">${{escapeHtml(turn.question)}}</div>
       <div class="chat-turn-a advocate"><div class="avatar advocate">A</div><div class="bubble"><div class="bubble-who">Advocate</div>${{escapeHtml(turn.advocate)}}</div></div>
       <div class="chat-turn-a skeptic"><div class="avatar skeptic">S</div><div class="bubble"><div class="bubble-who">Skeptic</div>${{escapeHtml(turn.skeptic)}}</div></div>
+      ${{searchSourcesHtml(turn.search_sources)}}
     `).join("");
     chatLog.scrollTop = chatLog.scrollHeight;
   }}
@@ -1735,10 +1764,11 @@ def _draft_studio_html(
         cluster_id: currentClusterId() || lastClusterId,
         question: question,
         history: chatHistory,
+        use_search: searchEnabled(),
       }});
       lastClusterId = result.cluster_id;
       focusClusterInGraph(result.cluster_id);
-      chatHistory.push({{ question: question, advocate: result.advocate, skeptic: result.skeptic }});
+      chatHistory.push({{ question: question, advocate: result.advocate, skeptic: result.skeptic, search_sources: result.search_sources }});
       renderChat();
       setStatus("");
     }} catch (e) {{

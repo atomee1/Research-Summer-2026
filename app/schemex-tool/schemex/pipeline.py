@@ -351,14 +351,15 @@ def run_coverage_check(
     draft_text: str,
     schema: Schema,
     cluster: Cluster,
+    use_search: bool = False,
 ) -> CoverageReport:
     """Run Stage 4: check a journalist's draft against a schema, component
     by component, and report what's present / weak / missing."""
     print(f"[coverage] checking '{draft_path}' against schema for cluster "
-          f"'{cluster.name}' (v{schema.version}) ...")
+          f"'{cluster.name}' (v{schema.version}, search={use_search}) ...")
 
     prompt = build_coverage_prompt(schema, draft_text, cluster.name)
-    raw = client.complete_json(COVERAGE_SYSTEM, prompt)
+    raw = client.complete_json(COVERAGE_SYSTEM, prompt, use_search=use_search)
 
     items = [CoverageItem.from_dict(i) for i in raw.get("items", [])]
     report = CoverageReport(
@@ -428,6 +429,7 @@ def run_critique(
     draft_text: str,
     schema: Schema,
     cluster: Cluster,
+    use_search: bool = False,
 ) -> "CritiqueReport":
     """Run the critic bot: holistic editorial critique of a draft covering
     structure, argument, and prose."""
@@ -435,10 +437,10 @@ def run_critique(
     from .prompts import CRITIC_SYSTEM, build_critic_prompt
 
     print(f"[critic] critiquing '{draft_path}' against schema "
-          f"'{cluster.name}' ...")
+          f"'{cluster.name}' (search={use_search}) ...")
 
     prompt = build_critic_prompt(schema, draft_text, cluster.name)
-    raw = client.complete_json(CRITIC_SYSTEM, prompt)
+    raw = client.complete_json(CRITIC_SYSTEM, prompt, use_search=use_search)
 
     report = CritiqueReport(
         draft_path=draft_path,
@@ -509,6 +511,7 @@ def run_debate(
     cluster: Cluster,
     history: List[dict],
     question: str,
+    use_search: bool = False,
 ) -> Dict[str, str]:
     """Answer a reporter's question about their draft two opposing ways:
     an Advocate who defends the current framing, and a Skeptic who
@@ -516,11 +519,11 @@ def run_debate(
     """
     from .prompts import DEBATE_SYSTEM, build_debate_prompt
 
-    print(f"[debate] cluster '{cluster.name}': {question[:60]}"
-          f"{'...' if len(question) > 60 else ''}")
+    print(f"[debate] cluster '{cluster.name}' (search={use_search}): "
+          f"{question[:60]}{'...' if len(question) > 60 else ''}")
 
     prompt = build_debate_prompt(schema, draft_text, cluster.name, history, question)
-    raw = client.complete_json(DEBATE_SYSTEM, prompt)
+    raw = client.complete_json(DEBATE_SYSTEM, prompt, use_search=use_search)
     return {"advocate": raw.get("advocate", ""), "skeptic": raw.get("skeptic", "")}
 
 
@@ -535,6 +538,7 @@ def run_cuts(
     schema: Schema,
     cluster: Cluster,
     target_words: int,
+    use_search: bool = False,
 ) -> "CutsReport":
     """Suggest specific, verbatim cuts to bring a draft down to a word
     limit, ordered safest-first, without touching required schema content
@@ -562,7 +566,7 @@ def run_cuts(
         )
 
     prompt = build_cuts_prompt(schema, draft_text, cluster.name, target_words, current_words, over_by)
-    raw = client.complete_json(CUTS_SYSTEM, prompt)
+    raw = client.complete_json(CUTS_SYSTEM, prompt, use_search=use_search)
 
     suggestions = []
     for item in raw.get("suggestions", []):
@@ -598,6 +602,7 @@ def run_toulmin(
     draft_text: str,
     schema: Schema,
     cluster: Cluster,
+    use_search: bool = False,
 ) -> "ToulminReport":
     """Classify each schema component's content as a claim, a warrant, or
     narrative, and flag claims the draft never actually backs up.
@@ -606,10 +611,10 @@ def run_toulmin(
     from .prompts import TOULMIN_SYSTEM, build_toulmin_prompt
 
     print(f"[toulmin] mapping argument structure of '{draft_path}' against "
-          f"schema '{cluster.name}' ...")
+          f"schema '{cluster.name}' (search={use_search}) ...")
 
     prompt = build_toulmin_prompt(schema, draft_text, cluster.name)
-    raw = client.complete_json(TOULMIN_SYSTEM, prompt)
+    raw = client.complete_json(TOULMIN_SYSTEM, prompt, use_search=use_search)
 
     items = [ToulminItem.from_dict(i) for i in raw.get("items", [])]
     report = ToulminReport(
