@@ -149,11 +149,14 @@ def _make_handler(app: _AppState):
             schema = app.state.schemas.get(cluster.id)
             if schema is None:
                 raise ValueError(f"Cluster '{cluster.id}' has no schema.")
-            report = run_critique(app.client(), "draft", draft_text, schema, cluster)
+            client = app.client()
+            report = run_critique(client, "draft", draft_text, schema, cluster,
+                                   use_search=bool(body.get("use_search")))
             self._send_json({
                 "cluster_id": cluster.id,
                 "cluster_name": cluster.name,
                 "critique": report.to_dict(),
+                "search_sources": client.last_search_sources,
             })
 
         def _handle_fix(self, body: dict) -> None:
@@ -173,11 +176,14 @@ def _make_handler(app: _AppState):
             schema = app.state.schemas.get(cluster.id)
             if schema is None:
                 raise ValueError(f"Cluster '{cluster.id}' has no schema.")
-            report = run_coverage_check(app.client(), "draft", draft_text, schema, cluster)
+            client = app.client()
+            report = run_coverage_check(client, "draft", draft_text, schema, cluster,
+                                         use_search=bool(body.get("use_search")))
             self._send_json({
                 "cluster_id": cluster.id,
                 "cluster_name": cluster.name,
                 "coverage": report.to_dict(),
+                "search_sources": client.last_search_sources,
             })
 
         def _handle_cuts(self, body: dict) -> None:
@@ -195,11 +201,14 @@ def _make_handler(app: _AppState):
             schema = app.state.schemas.get(cluster.id)
             if schema is None:
                 raise ValueError(f"Cluster '{cluster.id}' has no schema.")
-            report = run_cuts(app.client(), "draft", draft_text, schema, cluster, target_words)
+            client = app.client()
+            report = run_cuts(client, "draft", draft_text, schema, cluster, target_words,
+                               use_search=bool(body.get("use_search")))
             self._send_json({
                 "cluster_id": cluster.id,
                 "cluster_name": cluster.name,
                 "cuts": report.to_dict(),
+                "search_sources": client.last_search_sources,
             })
 
         def _handle_chat(self, body: dict) -> None:
@@ -212,10 +221,13 @@ def _make_handler(app: _AppState):
             schema = app.state.schemas.get(cluster.id)
             if schema is None:
                 raise ValueError(f"Cluster '{cluster.id}' has no schema.")
-            reply = run_debate(app.client(), draft_text, schema, cluster, history, question)
+            client = app.client()
+            reply = run_debate(client, draft_text, schema, cluster, history, question,
+                                use_search=bool(body.get("use_search")))
             self._send_json({
                 "cluster_id": cluster.id,
                 "cluster_name": cluster.name,
+                "search_sources": client.last_search_sources,
                 **reply,
             })
 
@@ -227,11 +239,14 @@ def _make_handler(app: _AppState):
             schema = app.state.schemas.get(cluster.id)
             if schema is None:
                 raise ValueError(f"Cluster '{cluster.id}' has no schema.")
-            report = run_toulmin(app.client(), "draft", draft_text, schema, cluster)
+            client = app.client()
+            report = run_toulmin(client, "draft", draft_text, schema, cluster,
+                                  use_search=bool(body.get("use_search")))
             self._send_json({
                 "cluster_id": cluster.id,
                 "cluster_name": cluster.name,
                 "toulmin": report.to_dict(),
+                "search_sources": client.last_search_sources,
             })
 
         def _handle_ledger_append(self, body: dict) -> None:

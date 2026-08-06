@@ -17,7 +17,7 @@ from __future__ import annotations
 import json
 import os
 import re
-from typing import Any, Optional
+from typing import Any, Dict, List, Optional
 
 try:
     import anthropic
@@ -29,6 +29,14 @@ except ImportError as exc:  # pragma: no cover
 
 DEFAULT_MODEL = os.environ.get("SCHEMEX_MODEL", "claude-sonnet-4-6")
 DEFAULT_MAX_TOKENS = 4096
+
+# Anthropic's server-side web search tool -- Claude decides on its own whether
+# a given call actually needs to search; declaring the tool just makes the
+# capability available. `max_uses` bounds it to a few searches per call so an
+# "on" toggle in the UI can't run away with cost/latency. Requires a model
+# that supports the dynamic-filtering search tool (Sonnet 4.6+/Opus 4.6+ and
+# newer) -- schemex's default model qualifies.
+SEARCH_TOOL = {"type": "web_search_20260209", "name": "web_search", "max_uses": 3}
 
 
 class LLMError(RuntimeError):
@@ -55,28 +63,36 @@ class ClaudeClient:
                 "variable, or pass --api-key on the command line."
             )
         self._client = anthropic.Anthropic(api_key=api_key)
+        # Sources from the most recent completion, if use_search=True was
+        # passed -- a side-channel rather than a return value so every
+        # existing complete()/complete_json() call site keeps working
+        # unchanged; callers that care read this right after the call.
+        self.last_search_sources: List[Dict[str, str]] = []
 
-    def complete(self, system: str, user: str) -> str:
+    def complete(self, system: str, user: str, use_search: bool = False) -> str:
         """Single-turn completion. Returns the concatenated text blocks."""
         if self.verbose:
-            print(f"\n--- LLM call (model={self.model}) ---")
+            print(f"\n--- LLM call (model={self.model}, search={use_search}) ---")
             print("SYSTEM:", system[:300], "..." if len(system) > 300 else "")
             print("USER:", user[:500], "..." if len(user) > 500 else "")
 
+        kwargs = {"tools": [SEARCH_TOOL]} if use_search else {}
         response = self._client.messages.create(
             model=self.model,
             max_tokens=self.max_tokens,
             system=system,
             messages=[{"role": "user", "content": user}],
+            **kwargs,
         )
         text = "".join(
             block.text for block in response.content if block.type == "text"
         )
+        self.last_search_sources = _extract_search_sources(response) if use_search else []
         if self.verbose:
             print("RESPONSE:", text[:800], "..." if len(text) > 800 else "")
         return text
 
-    def complete_json(self, system: str, user: str) -> Any:
+    def complete_json(self, system: str, user: str, use_search: bool = False) -> Any:
         """Completion where the model is instructed to return pure JSON.
 
         Strips markdown code fences and any leading/trailing prose the
@@ -89,11 +105,32 @@ class ClaudeClient:
             "array). Do not include any prose, explanation, or markdown "
             "code fences before or after the JSON."
         )
-        raw = self.complete(system, user + json_instruction)
+        raw = self.complete(system, user + json_instruction, use_search=use_search)
         parsed = _extract_json(raw)
         if parsed is None:
             raise LLMError(f"Could not parse JSON from model response:\n{raw}")
         return parsed
+
+
+def _extract_search_sources(response: Any) -> List[Dict[str, str]]:
+    """Pull {title, url} out of any web_search_tool_result blocks in a
+    response. On a search-tool error (e.g. max_uses_exceeded), `.content`
+    is a single error object rather than a list -- skip those rather than
+    surfacing the raw error as a fake source."""
+    sources: List[Dict[str, str]] = []
+    for block in getattr(response, "content", []):
+        if getattr(block, "type", None) != "web_search_tool_result":
+            continue
+        content = getattr(block, "content", None)
+        if not isinstance(content, list):
+            continue
+        for item in content:
+            if getattr(item, "type", None) == "web_search_result":
+                sources.append({
+                    "title": getattr(item, "title", "") or "",
+                    "url": getattr(item, "url", "") or "",
+                })
+    return sources
 
 
 def _extract_json(raw: str) -> Optional[Any]:
