@@ -785,8 +785,9 @@ def _draft_studio_html(
   }}
   #draftText:focus {{ outline: none; border-color: #7F77DD; }}
   .dial-card {{ display: flex; flex-direction: column; align-items: center; text-align: center; }}
-  .dial-wrap {{ position: relative; width: 148px; height: 148px; margin: 2px 0 10px; }}
+  .dial-wrap {{ position: relative; width: 148px; height: 148px; margin: 2px 0 10px; border-radius: 50%; transition: box-shadow 0.4s ease; }}
   .dial-wrap svg {{ width: 100%; height: 100%; transform: rotate(-90deg); }}
+  .dial-wrap.dial-over {{ box-shadow: 0 0 0 6px rgba(224,88,74,0.12), 0 0 22px rgba(224,88,74,0.35); }}
   .dial-track {{ fill: none; stroke: #2c2c2a; stroke-width: 9; }}
   .dial-fill {{ fill: none; stroke: #1D9E75; stroke-width: 9; stroke-linecap: round; transition: stroke-dashoffset 0.4s ease, stroke 0.4s ease; }}
   .dial-center {{ position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }}
@@ -860,6 +861,13 @@ def _draft_studio_html(
   .verdict-line {{ font-family: "Playfair Display", Georgia, serif; font-size: 18px; line-height: 1.45; margin-bottom: 16px; color: #e8e6de; }}
   .issue-group {{ margin-bottom: 14px; }}
   .issue-group-title {{ font-size: 10.5px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: #5F5E5A; margin-bottom: 7px; }}
+  .scorecard-row {{ display: flex; gap: 8px; flex-wrap: wrap; margin: 12px 0 18px; }}
+  .scorecard-pill {{
+    display: inline-flex; align-items: center; gap: 6px; padding: 5px 13px;
+    border-radius: 999px; border: 1px solid; background: #242423; font-size: 12.5px;
+    animation: arc-pop 0.35s ease;
+  }}
+  .scorecard-pill b {{ font-variant-numeric: tabular-nums; font-size: 13.5px; }}
   .issue-row {{ border-left: 3px solid #888780; background: #242423; border-radius: 0 8px 8px 0; padding: 10px 12px; margin-bottom: 7px; font-size: 13.5px; line-height: 1.55; }}
   .issue-head {{ color: #e8e6de; font-weight: 600; margin-bottom: 4px; }}
   .issue-sev {{ font-weight: 700; text-transform: uppercase; font-size: 10.5px; margin-right: 5px; }}
@@ -890,6 +898,7 @@ def _draft_studio_html(
   .chat-turn-q {{ align-self: flex-end; max-width: 88%; background: #242423; border-radius: 11px 11px 3px 11px; padding: 8px 12px; font-size: 13.5px; color: #e8e6de; }}
   .chat-turn-a {{ display: flex; gap: 8px; max-width: 92%; }}
   .avatar {{ width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 10.5px; font-weight: 700; flex-shrink: 0; margin-top: 1px; }}
+  .avatar svg {{ width: 13px; height: 13px; }}
   .avatar.advocate {{ background: #0F2A22; color: #1D9E75; }}
   .avatar.skeptic {{ background: #2E1411; color: #E0584A; }}
   .bubble {{ background: #242423; border-radius: 3px 11px 11px 11px; padding: 9px 12px; font-size: 13.5px; line-height: 1.5; color: #c2c0b6; }}
@@ -908,7 +917,8 @@ def _draft_studio_html(
   .ledger-row {{ border-top: 1px solid #242423; padding: 10px 0; }}
   .ledger-row:first-child {{ border-top: none; }}
   .ledger-row-head {{ display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 12.5px; color: #888780; }}
-  .ledger-badge {{ font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; padding: 2px 8px; border-radius: 20px; }}
+  .ledger-badge {{ display: inline-flex; align-items: center; gap: 4px; font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; padding: 2px 9px 2px 7px; border-radius: 20px; }}
+  .ledger-badge svg {{ width: 10px; height: 10px; }}
   .ledger-badge-fix {{ background: #201F3A; color: #7F77DD; }}
   .ledger-badge-cut {{ background: #2E2008; color: #EF9F27; }}
   .ledger-time {{ color: #5F5E5A; }}
@@ -1042,6 +1052,32 @@ def _draft_studio_html(
     minor: '<svg viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="2.4" fill="#7F77DD"/></svg>',
   }};
 
+  // Small inline glyphs used to give recurring UI elements (chat roles, ledger
+  // actions) a distinct visual identity instead of plain letters/text --
+  // matches RING_ICON's stroke-based style so everything reads as one system.
+  const AVATAR_ICON = {{
+    advocate: '<svg viewBox="0 0 16 16" fill="none"><path d="M8 1.5l5 2v3.7c0 3.3-2.1 5.9-5 7.3-2.9-1.4-5-4-5-7.3V3.5l5-2z" stroke="#1D9E75" stroke-width="1.4" stroke-linejoin="round"/><path d="M5.7 8.2l1.6 1.6 3-3.2" stroke="#1D9E75" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+    skeptic: '<svg viewBox="0 0 16 16" fill="none"><circle cx="6.8" cy="6.8" r="4.3" stroke="#E0584A" stroke-width="1.4"/><path d="M10 10l3.2 3.2" stroke="#E0584A" stroke-width="1.4" stroke-linecap="round"/></svg>',
+  }};
+  const ACTION_ICON = {{
+    fix: '<svg viewBox="0 0 16 16" fill="none"><path d="M11 2l3 3-7.5 7.5-3.5 1 1-3.5L11 2z" stroke="#7F77DD" stroke-width="1.3" stroke-linejoin="round"/></svg>',
+    cut: '<svg viewBox="0 0 16 16" fill="none"><circle cx="3.8" cy="3.8" r="1.8" stroke="#EF9F27" stroke-width="1.3"/><circle cx="3.8" cy="12.2" r="1.8" stroke="#EF9F27" stroke-width="1.3"/><path d="M5.2 5.1L13 12.5M5.2 10.9L13 3.5" stroke="#EF9F27" stroke-width="1.3" stroke-linecap="round"/></svg>',
+  }};
+
+  // Compact colored-count strip shown above the detailed findings list --
+  // an instant visual read (e.g. "2 critical, 1 major") before scrolling
+  // through individual issues below.
+  function scorecardHtml(counts, colorMap, labelMap) {{
+    const parts = Object.keys(counts)
+      .filter(k => counts[k] > 0)
+      .map(k => {{
+        const c = colorMap[k] || "#888780";
+        const label = labelMap[k] || k;
+        return `<span class="scorecard-pill" style="border-color:${{c}};color:${{c}}"><b>${{counts[k]}}</b> ${{escapeHtml(label)}}</span>`;
+      }});
+    return parts.length ? `<div class="scorecard-row">${{parts.join("")}}</div>` : "";
+  }}
+
   let lastCritique = null;
   let lastClusterId = null;
   let lastCutsSuggestions = [];
@@ -1063,7 +1099,7 @@ def _draft_studio_html(
     return `
       <div class="ledger-row">
         <div class="ledger-row-head">
-          <span class="ledger-badge ledger-badge-${{entry.action}}">${{entry.action}}</span>
+          <span class="ledger-badge ledger-badge-${{entry.action}}">${{ACTION_ICON[entry.action] || ""}}${{entry.action}}</span>
           <span class="ledger-time">${{when}}</span>
           <span class="ledger-words">${{entry.before_words}} &rarr; ${{entry.after_words}} words</span>
         </div>
@@ -1135,6 +1171,7 @@ def _draft_studio_html(
     const dialCount = document.getElementById("dialCount");
     const dialTarget = document.getElementById("dialTarget");
     const dialFill = document.getElementById("dialFill");
+    const dialWrap = document.querySelector(".dial-wrap");
     const CIRC = 2 * Math.PI * 65;
 
     dialCount.textContent = words;
@@ -1150,12 +1187,14 @@ def _draft_studio_html(
       const pct = Math.min(ratio, 1);
       dialFill.style.stroke = color;
       dialFill.style.strokeDashoffset = CIRC - pct * CIRC;
+      dialWrap.classList.toggle("dial-over", diff > 0);
     }} else {{
       dialTarget.textContent = "--";
       label.textContent = `${{words}} words`;
       label.style.color = "#888780";
       dialFill.style.stroke = "#1D9E75";
       dialFill.style.strokeDashoffset = CIRC;
+      dialWrap.classList.remove("dial-over");
     }}
   }}
 
@@ -1498,8 +1537,13 @@ def _draft_studio_html(
       setStatus(`Matched cluster: ${{result.cluster_name}}`);
 
       const c = lastCritique;
+      const sevCounts = {{ critical: 0, major: 0, minor: 0 }};
+      [].concat(c.structural_issues, c.argumentative_issues, c.prose_issues).forEach(i => {{
+        if (sevCounts[i.severity] !== undefined) sevCounts[i.severity]++;
+      }});
       document.getElementById("findings").innerHTML =
         `<div class="verdict-line">${{escapeHtml(c.verdict)}}</div>
+        ${{scorecardHtml(sevCounts, SEV_COLOR, {{ critical: "critical", major: "major", minor: "minor" }})}}
         <div class="gauge-row" style="display:none"></div>
         ${{issueListHtml("Structural issues", c.structural_issues)}}
         ${{issueListHtml("Argumentative issues", c.argumentative_issues)}}
@@ -1548,8 +1592,11 @@ def _draft_studio_html(
       document.getElementById("gaugeRow").style.display = "none";
 
       const r = result.coverage;
+      const covCounts = {{ present: 0, weak: 0, missing: 0 }};
+      r.items.forEach(item => {{ if (covCounts[item.status] !== undefined) covCounts[item.status]++; }});
       document.getElementById("findings").innerHTML = `
         ${{r.overall_summary ? `<div class="verdict-line">${{escapeHtml(r.overall_summary)}}</div>` : ""}}
+        ${{scorecardHtml(covCounts, COV_COLOR, {{ present: "present", weak: "weak", missing: "missing" }})}}
         ${{r.items.map(item => `
           <div class="issue-row" style="border-left-color:${{COV_COLOR[item.status] || '#888780'}}">
             <div class="issue-head"><span class="issue-sev" style="color:${{COV_COLOR[item.status] || '#888780'}}">${{escapeHtml(item.status)}}</span>${{escapeHtml(item.component_name)}}</div>
@@ -1701,8 +1748,15 @@ def _draft_studio_html(
 
       const t = result.toulmin;
       const ROLE_LABEL = {{ claim: "Claim", warrant: "Warrant", narrative: "Narrative" }};
+      const roleCounts = {{ warrant: 0, claim_ok: 0, gap: 0, narrative: 0 }};
+      t.items.forEach(item => {{
+        if (item.role === "warrant") roleCounts.warrant++;
+        else if (item.role === "claim") roleCounts[item.supported ? "claim_ok" : "gap"]++;
+        else roleCounts.narrative++;
+      }});
       document.getElementById("findings").innerHTML = `
         ${{t.summary ? `<div class="verdict-line">${{escapeHtml(t.summary)}}</div>` : ""}}
+        ${{scorecardHtml(roleCounts, {{ warrant: "#1D9E75", claim_ok: "#7F77DD", gap: "#E0584A", narrative: "#5F5E5A" }}, {{ warrant: "warrant", claim_ok: "supported claim", gap: "gap", narrative: "narrative" }})}}
         <div class="issue-group-title" style="margin-bottom:8px">Teal = warrant/evidence &middot; purple = supported claim &middot; red = unsupported claim (gap) &middot; grey = narrative</div>
         ${{t.items.map(item => {{
           const isGap = item.role === "claim" && !item.supported;
@@ -1743,8 +1797,8 @@ def _draft_studio_html(
   function renderChat() {{
     chatLog.innerHTML = chatHistory.map(turn => `
       <div class="chat-turn-q">${{escapeHtml(turn.question)}}</div>
-      <div class="chat-turn-a advocate"><div class="avatar advocate">A</div><div class="bubble"><div class="bubble-who">Advocate</div>${{escapeHtml(turn.advocate)}}</div></div>
-      <div class="chat-turn-a skeptic"><div class="avatar skeptic">S</div><div class="bubble"><div class="bubble-who">Skeptic</div>${{escapeHtml(turn.skeptic)}}</div></div>
+      <div class="chat-turn-a advocate"><div class="avatar advocate">${{AVATAR_ICON.advocate}}</div><div class="bubble"><div class="bubble-who">Advocate</div>${{escapeHtml(turn.advocate)}}</div></div>
+      <div class="chat-turn-a skeptic"><div class="avatar skeptic">${{AVATAR_ICON.skeptic}}</div><div class="bubble"><div class="bubble-who">Skeptic</div>${{escapeHtml(turn.skeptic)}}</div></div>
       ${{searchSourcesHtml(turn.search_sources)}}
     `).join("");
     chatLog.scrollTop = chatLog.scrollHeight;
