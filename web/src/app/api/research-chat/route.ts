@@ -7,6 +7,11 @@ type ChatMessage = {
   content: string;
 };
 
+type WebSource = {
+  title: string;
+  url: string;
+};
+
 const SYSTEM_PROMPT = `
 You are a research assistant for journalists using a causal-analysis tool.
 
@@ -40,6 +45,23 @@ When answering questions about a reporting gap or causal link, prefer this struc
 7. How new evidence could change the causal tree
 
 Keep answers concrete. Avoid generic advice.
+`;
+
+const WEB_RESEARCH_PROMPT = `
+Web research is enabled for this response.
+
+Use web search when outside or current evidence would help answer the journalist's
+question.
+
+When using web research:
+- Clearly distinguish article-derived information from web-derived information.
+- Prefer primary sources, official records, government documents, court records,
+  original research, direct statements, and reputable reporting.
+- Do not claim that finding a source proves a causal relationship.
+- Cite factual claims based on web research.
+- Explain how the external evidence could strengthen, weaken, complicate, or
+  contradict the causal tree.
+- Tell the journalist what still requires independent verification.
 `;
 
 function formatContext({
@@ -92,6 +114,74 @@ Focus on practical next steps, evidence needed, gap prioritization, and how new 
   }
 }
 
+function extractWebSources(response: unknown): WebSource[] {
+  const responseObject = response as {
+    output?: unknown;
+  };
+
+  if (!Array.isArray(responseObject.output)) {
+    return [];
+  }
+
+  const sources = new Map<string, WebSource>();
+
+  for (const item of responseObject.output) {
+    if (typeof item !== "object" || item === null) {
+      continue;
+    }
+
+    const itemObject = item as {
+      type?: unknown;
+      content?: unknown;
+    };
+
+    if (itemObject.type !== "message" || !Array.isArray(itemObject.content)) {
+      continue;
+    }
+
+    for (const contentPart of itemObject.content) {
+      if (typeof contentPart !== "object" || contentPart === null) {
+        continue;
+      }
+
+      const contentObject = contentPart as {
+        annotations?: unknown;
+      };
+
+      if (!Array.isArray(contentObject.annotations)) {
+        continue;
+      }
+
+      for (const annotation of contentObject.annotations) {
+        if (typeof annotation !== "object" || annotation === null) {
+          continue;
+        }
+
+        const citation = annotation as {
+          type?: unknown;
+          url?: unknown;
+          title?: unknown;
+        };
+
+        if (
+          citation.type === "url_citation" &&
+          typeof citation.url === "string"
+        ) {
+          sources.set(citation.url, {
+            url: citation.url,
+            title:
+              typeof citation.title === "string"
+                ? citation.title
+                : citation.url,
+          });
+        }
+      }
+    }
+  }
+
+  return Array.from(sources.values());
+}
+
 export async function POST(request: Request) {
   try {
     const body = await request.json();
@@ -101,6 +191,7 @@ export async function POST(request: Request) {
     const causalTree = body.causalTree ?? null;
     const messages = (body.messages ?? []) as ChatMessage[];
     const chatMode = String(body.chatMode ?? "reporting_plan");
+    const webEnabled = body.webEnabled === true;
 
     if (!title.trim() || !articleText.trim()) {
       return Response.json(
@@ -127,7 +218,10 @@ export async function POST(request: Request) {
       apiKey: process.env.OPENAI_API_KEY,
     });
 
-    const model = process.env.OPENAI_MODEL ?? "gpt-4o-mini";
+    const internalModel = process.env.OPENAI_MODEL ?? "gpt-4o-mini";
+    const webModel = process.env.OPENAI_WEB_MODEL ?? "gpt-5.6";
+
+    const model = webEnabled ? webModel : internalModel;
 
     const context = formatContext({
       title,
@@ -135,8 +229,20 @@ export async function POST(request: Request) {
       causalTree,
     });
 
+    const webTools = webEnabled
+      ? [
+          {
+            type: "web_search" as const,
+            search_context_size: "medium" as const,
+          },
+        ]
+      : undefined;
+
     const response = await openai.responses.create({
       model,
+      tools: webTools,
+      tool_choice: webEnabled ? "auto" : undefined,
+
       input: [
         {
           role: "system",
@@ -145,6 +251,16 @@ export async function POST(request: Request) {
         {
           role: "system",
           content: modeInstructions(chatMode),
+        },
+        {
+          role: "system",
+          content: webEnabled
+            ? WEB_RESEARCH_PROMPT
+            : `
+    Web research is disabled.
+    Use only the supplied article, causal tree, and conversation.
+    Do not imply that you searched for or verified outside information.
+    `,
         },
         {
           role: "user",
@@ -157,8 +273,16 @@ export async function POST(request: Request) {
       ],
     });
 
+    const sources = webEnabled ? extractWebSources(response) : [];
+
+    const usedWeb = response.output.some(
+      (item) => item.type === "web_search_call"
+    );
+
     return Response.json({
       reply: response.output_text,
+      sources,
+      usedWeb,
     });
   } catch (error) {
     console.error("Research chat failed:", error);

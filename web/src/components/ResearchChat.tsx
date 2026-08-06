@@ -3,9 +3,16 @@
 import { useEffect, useMemo, useState } from "react";
 import type { CausalTree } from "@/lib/schema";
 
+type WebSource = {
+  title: string;
+  url: string;
+};
+
 type ChatMessage = {
   role: "user" | "assistant";
   content: string;
+  sources?: WebSource[];
+  usedWeb?: boolean;
 };
 
 type Props = {
@@ -85,6 +92,8 @@ export function ResearchChat({title, articleText, causalTree, draftPrompt, onDra
     "reporting_plan" | "source_strategy" | "interview_prep" | "framing_critique"
   >("reporting_plan");
 
+  const [webEnabled, setWebEnabled] = useState(false);
+
   useEffect(() => {
     if (!draftPrompt) {
       return;
@@ -130,12 +139,18 @@ export function ResearchChat({title, articleText, causalTree, draftPrompt, onDra
         causalTree,
         messages: nextMessages,
         chatMode,
+        webEnabled,
       }),
       });
 
       const text = await response.text();
 
-      let data: { reply?: string; error?: string };
+      let data: {
+        reply?: string;
+        error?: string;
+        sources?: WebSource[];
+        usedWeb?: boolean;
+      };
 
       try {
         data = JSON.parse(text);
@@ -157,6 +172,8 @@ export function ResearchChat({title, articleText, causalTree, draftPrompt, onDra
         {
           role: "assistant",
           content: data.reply ?? "I could not generate a response.",
+          sources: data.sources ?? [],
+          usedWeb: data.usedWeb ?? false,
         },
       ]);
     } catch (error) {
@@ -212,6 +229,43 @@ export function ResearchChat({title, articleText, causalTree, draftPrompt, onDra
         </select>
       </div>
 
+      <div className="mt-4 rounded-lg border border-slate-700 bg-slate-950 p-4">
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <p className="text-sm font-semibold text-slate-100">
+              Web research
+            </p>
+
+            <p className="mt-1 text-xs text-slate-400">
+              {webEnabled
+                ? "The assistant may search for current outside evidence and sources."
+                : "The assistant will use only the article and causal analysis."}
+            </p>
+          </div>
+
+          <button
+            type="button"
+            aria-pressed={webEnabled}
+            onClick={() => setWebEnabled((current) => !current)}
+            disabled={isSending}
+            className={
+              webEnabled
+                ? "rounded-full bg-emerald-500 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+                : "rounded-full border border-slate-600 bg-slate-800 px-4 py-2 text-sm font-semibold text-slate-200 disabled:opacity-50"
+            }
+          >
+            {webEnabled ? "Web on" : "Web off"}
+          </button>
+        </div>
+
+        {webEnabled && (
+          <div className="mt-3 rounded-lg border border-emerald-900 bg-emerald-950 p-3 text-xs text-emerald-100">
+            Web results are outside evidence, not automatically verified facts.
+            Review the cited sources before using them in reporting.
+          </div>
+        )}
+      </div>
+
       <div className="mt-5">
         <h4 className="text-sm font-semibold text-slate-200">
           Quick research actions
@@ -262,7 +316,40 @@ export function ResearchChat({title, articleText, causalTree, draftPrompt, onDra
                 : "mr-auto max-w-[85%] rounded-lg bg-slate-800 p-3 text-sm text-slate-100"
             }
           >
+            {message.role === "assistant" && message.usedWeb && (
+              <div className="mb-2">
+                <span className="rounded bg-emerald-950 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-emerald-200">
+                  Web researched
+                </span>
+              </div>
+            )}
+
             <p className="whitespace-pre-wrap">{message.content}</p>
+
+            {message.role === "assistant" &&
+              message.sources &&
+              message.sources.length > 0 && (
+                <div className="mt-4 border-t border-slate-700 pt-3">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                    Sources
+                  </p>
+
+                  <ul className="mt-2 space-y-2">
+                    {message.sources.map((source, sourceIndex) => (
+                      <li key={`${source.url}-${sourceIndex}`}>
+                        <a
+                          href={source.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-xs text-emerald-300 underline decoration-emerald-700 underline-offset-2 hover:text-emerald-200"
+                        >
+                          {source.title || source.url}
+                        </a>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
           </div>
         ))}
 
